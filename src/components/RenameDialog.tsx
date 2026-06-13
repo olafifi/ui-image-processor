@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { buildRenameCsv, parseRenameCsv, parseRenameXlsx } from '../lib/csvRename';
+import { buildRenameCsv, parseRenameCsvBuffer, parseRenameXlsx } from '../lib/csvRename';
 import type { RenameMapping } from '../types';
 
 interface RenameDialogProps {
@@ -24,9 +24,10 @@ export function RenameDialog({ oldFilenames, onClose, onApplyMappings }: RenameD
   }
 
   async function handleRenameFile(file: File) {
+    const buffer = await file.arrayBuffer();
     const result = isXlsxFile(file)
-      ? await parseRenameXlsx(await file.arrayBuffer(), oldFilenames)
-      : parseRenameCsv(await file.text(), oldFilenames);
+      ? await parseRenameXlsx(buffer, oldFilenames)
+      : parseRenameCsvBuffer(buffer, oldFilenames);
     setErrors(result.errors);
     setMappedCount(result.mappings.filter((mapping) => mapping.newFilename).length);
 

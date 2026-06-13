@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
-import { buildRenameCsv, parseRenameCsv, parseRenameXlsx } from './csvRename';
+import { buildRenameCsv, parseRenameCsv, parseRenameCsvBuffer, parseRenameXlsx } from './csvRename';
 
 describe('csv rename workflow', () => {
   it('builds a utf8 bom csv template', () => {
@@ -19,6 +19,29 @@ describe('csv rename workflow', () => {
 
     expect(result.mappings[0].newFilename).toBe('ui_button_start');
     expect(result.errors).toEqual([]);
+  });
+
+  it('parses chinese filenames from gb18030 csv files saved by spreadsheet apps', () => {
+    const csvBytes = Uint8Array.from([
+      ...asciiBytes('index,old_filename,new_filename\n1,'),
+      0xc5,
+      0xe2,
+      0xd0,
+      0xa6,
+      ...asciiBytes('.png,'),
+      0xd0,
+      0xc2,
+      0xc3,
+      0xfb,
+      0xd7,
+      0xd6,
+      ...asciiBytes('.png\n')
+    ]);
+
+    const result = parseRenameCsvBuffer(csvBytes.buffer, ['赔笑.png']);
+
+    expect(result.errors).toEqual([]);
+    expect(result.mappings[0].newFilename).toBe('新名字.png');
   });
 
   it('reports duplicate new filenames', () => {
@@ -112,4 +135,8 @@ function escapeXml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+function asciiBytes(value: string): number[] {
+  return Array.from(value).map((character) => character.charCodeAt(0));
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { buildRenameCsv, parseRenameCsv, parseRenameXlsx } from '../lib/csvRename';
+import { buildRenameCsv, parseRenameCsvBuffer, parseRenameXlsx } from '../lib/csvRename';
 import type { ImageQueueItem, RenameMapping } from '../types';
 
 interface RenameWorkspaceProps {
@@ -42,9 +42,10 @@ export function RenameWorkspace({
 
   async function handleRenameFile(file: File) {
     const expectedFilenames = items.map((item) => item.originalName);
+    const buffer = await file.arrayBuffer();
     const result = isXlsxFile(file)
-      ? await parseRenameXlsx(await file.arrayBuffer(), expectedFilenames)
-      : parseRenameCsv(await file.text(), expectedFilenames);
+      ? await parseRenameXlsx(buffer, expectedFilenames)
+      : parseRenameCsvBuffer(buffer, expectedFilenames);
     setErrors(result.errors);
 
     if (result.errors.length === 0) {

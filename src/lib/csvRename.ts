@@ -37,6 +37,10 @@ export function parseRenameCsv(csv: string, expectedOldFilenames: string[]): Par
   return parseRenameRows(rows, expectedOldFilenames, errors);
 }
 
+export function parseRenameCsvBuffer(csvBuffer: ArrayBuffer, expectedOldFilenames: string[]): ParseRenameResult {
+  return parseRenameCsv(decodeRenameCsv(csvBuffer), expectedOldFilenames);
+}
+
 export async function parseRenameXlsx(
   workbookBuffer: ArrayBuffer,
   expectedOldFilenames: string[]
@@ -263,4 +267,25 @@ function buildEmptyMappings(expectedOldFilenames: string[]): RenameMapping[] {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function decodeRenameCsv(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  if (hasUtf8Bom(bytes)) {
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  for (const encoding of ['utf-8', 'gb18030', 'gbk']) {
+    try {
+      return new TextDecoder(encoding, { fatal: true }).decode(bytes);
+    } catch {
+      continue;
+    }
+  }
+
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+function hasUtf8Bom(bytes: Uint8Array): boolean {
+  return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
 }

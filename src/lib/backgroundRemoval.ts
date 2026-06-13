@@ -25,10 +25,14 @@ interface ColorCluster extends Color {
 
 const TRANSPARENT_ALPHA_THRESHOLD = 250;
 const LIGHT_BACKGROUND_MIN = 218;
+const DARK_BACKGROUND_MAX = 50;
 const BACKGROUND_TOLERANCE = 28;
+const DARK_BACKGROUND_TOLERANCE = 18;
 const FOREGROUND_SEED_DISTANCE = 34;
 const FOREGROUND_DILATION_RATIO = 0.024;
 const MAX_FOREGROUND_DILATION_RADIUS = 32;
+const SOLID_FOREGROUND_DILATION_RATIO = 0.01;
+const MAX_SOLID_FOREGROUND_DILATION_RADIUS = 10;
 
 export async function autoCutoutItem(item: ImageQueueItem): Promise<AutoCutoutResult> {
   const image = await loadHtmlImage(item.previewUrl);
@@ -57,6 +61,7 @@ export function removeBackgroundFromImageData(input: ImageData): BackgroundRemov
   const alphaPixels = countTransparentPixels(output);
 
   if (alphaPixels > 0) {
+    normalizeFullyTransparentPixels(output);
     return {
       imageData: output,
       kind: 'existing-alpha',
@@ -75,8 +80,17 @@ export function removeBackgroundFromImageData(input: ImageData): BackgroundRemov
     };
   }
 
-  const kind = isCheckerboardLike(clusters) ? 'fake-checkerboard' : 'light-background';
-  const protectionMask = kind === 'fake-checkerboard' ? createForegroundProtectionMask(output, clusters) : undefined;
+  const kind = classifyBackgroundKind(clusters);
+  const protectionMask =
+    kind === 'fake-checkerboard'
+      ? createForegroundProtectionMask(output, clusters)
+      : kind === 'solid-background'
+        ? createForegroundProtectionMask(output, clusters, {
+            maxRadius: MAX_SOLID_FOREGROUND_DILATION_RADIUS,
+            minRadius: Math.min(output.width, output.height) >= 24 ? 5 : 1,
+            ratio: SOLID_FOREGROUND_DILATION_RATIO
+          })
+        : undefined;
   const removedPixelCount = floodFillBackground(output, clusters, protectionMask);
 
   return {
@@ -86,6 +100,8 @@ export function removeBackgroundFromImageData(input: ImageData): BackgroundRemov
       removedPixelCount > 0
         ? kind === 'fake-checkerboard'
           ? '已去除伪透明棋盘格背景'
+          : kind === 'solid-background'
+            ? '已去除边缘纯色背景'
           : '已去除边缘浅色背景'
         : '未识别到可安全自动移除的背景',
     removedPixelCount
@@ -122,7 +138,7 @@ function getBorderBackgroundClusters(imageData: ImageData): ColorCluster[] {
 
   forEachBorderPixel(width, height, (x, y) => {
     const color = getPixelColor(imageData, x, y);
-    if (!isLightNeutral(color)) {
+    if (!isAutomaticBackgroundCandidate(color)) {
       return;
     }
 
@@ -171,7 +187,7 @@ function floodFillBackground(imageData: ImageData, clusters: Color[], protection
     const pixelIndex = queue[cursor];
     const dataIndex = pixelIndex * 4;
     if (data[dataIndex + 3] !== 0) {
-      data[dataIndex + 3] = 0;
+      makePixelTransparent(data, dataIndex);
       removed += 1;
     }
 
@@ -204,15 +220,23 @@ function floodFillBackground(imageData: ImageData, clusters: Color[], protection
   }
 }
 
-function createForegroundProtectionMask(imageData: ImageData, clusters: Color[]): Uint8Array {
+function createForegroundProtectionMask(
+  imageData: ImageData,
+  clusters: Color[],
+  options: { maxRadius: number; minRadius?: number; ratio: number } = {
+    maxRadius: MAX_FOREGROUND_DILATION_RADIUS,
+    minRadius: 1,
+    ratio: FOREGROUND_DILATION_RATIO
+  }
+): Uint8Array {
   const { width, height } = imageData;
   const totalPixels = width * height;
   const protectedPixels = new Uint8Array(totalPixels);
   const distances = new Uint8Array(totalPixels);
   const queue = new Uint32Array(totalPixels);
   const radius = Math.max(
-    1,
-    Math.min(MAX_FOREGROUND_DILATION_RADIUS, Math.round(Math.min(width, height) * FOREGROUND_DILATION_RATIO))
+    options.minRadius ?? 1,
+    Math.min(options.maxRadius, Math.round(Math.min(width, height) * options.ratio))
   );
   let cursor = 0;
   let queueLength = 0;
@@ -274,6 +298,10 @@ function createForegroundProtectionMask(imageData: ImageData, clusters: Color[])
 }
 
 function isForegroundSeed(color: Color, clusters: Color[]): boolean {
+  if (isBackgroundLike(color, clusters)) {
+    return false;
+  }
+
   const max = Math.max(color.r, color.g, color.b);
   const min = Math.min(color.r, color.g, color.b);
   const nearestBackgroundDistance = Math.min(...clusters.map((cluster) => colorDistance(color, cluster)));
@@ -306,13 +334,29 @@ function getPixelColor(imageData: ImageData, x: number, y: number): Color {
 }
 
 function isBackgroundLike(color: Color, clusters: Color[]): boolean {
-  return isLightNeutral(color) && clusters.some((cluster) => colorDistance(color, cluster) <= BACKGROUND_TOLERANCE);
+  return clusters.some((cluster) => {
+    if (isDarkNeutral(cluster)) {
+      return isDarkNeutral(color) && colorDistance(color, cluster) <= DARK_BACKGROUND_TOLERANCE;
+    }
+
+    return isLightNeutral(color) && colorDistance(color, cluster) <= BACKGROUND_TOLERANCE;
+  });
+}
+
+function isAutomaticBackgroundCandidate(color: Color): boolean {
+  return isLightNeutral(color) || isDarkNeutral(color);
 }
 
 function isLightNeutral(color: Color): boolean {
   const max = Math.max(color.r, color.g, color.b);
   const min = Math.min(color.r, color.g, color.b);
   return min >= LIGHT_BACKGROUND_MIN && max - min <= 26;
+}
+
+function isDarkNeutral(color: Color): boolean {
+  const max = Math.max(color.r, color.g, color.b);
+  const min = Math.min(color.r, color.g, color.b);
+  return max <= DARK_BACKGROUND_MAX && max - min <= 30;
 }
 
 function colorDistance(a: Color, b: Color): number {
@@ -327,5 +371,29 @@ function isCheckerboardLike(clusters: ColorCluster[]): boolean {
     return false;
   }
 
-  return colorDistance(clusters[0], clusters[1]) >= 8;
+  return clusters.every(isLightNeutral) && colorDistance(clusters[0], clusters[1]) >= 8;
+}
+
+function classifyBackgroundKind(clusters: ColorCluster[]): CutoutKind {
+  if (isCheckerboardLike(clusters)) {
+    return 'fake-checkerboard';
+  }
+
+  return clusters.some(isDarkNeutral) ? 'solid-background' : 'light-background';
+}
+
+function makePixelTransparent(data: Uint8ClampedArray, index: number) {
+  data[index] = 255;
+  data[index + 1] = 255;
+  data[index + 2] = 255;
+  data[index + 3] = 0;
+}
+
+function normalizeFullyTransparentPixels(imageData: ImageData) {
+  const { data } = imageData;
+  for (let index = 0; index < data.length; index += 4) {
+    if (data[index + 3] === 0) {
+      makePixelTransparent(data, index);
+    }
+  }
 }

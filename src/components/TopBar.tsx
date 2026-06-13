@@ -4,9 +4,10 @@ import { Icon } from './Icon';
 interface TopBarProps {
   onImportFiles: (files: Iterable<File>) => void;
   onOpenRename: () => void;
+  onOpenTemplate: () => void;
 }
 
-export function TopBar({ onImportFiles, onOpenRename }: TopBarProps) {
+export function TopBar({ onImportFiles, onOpenRename, onOpenTemplate }: TopBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -35,7 +36,7 @@ export function TopBar({ onImportFiles, onOpenRename }: TopBarProps) {
           ref={inputRef}
           type="file"
         />
-        <button className="action" type="button">
+        <button className="action" onClick={onOpenTemplate} type="button">
           <Icon name="template" />
           套用模板
         </button>

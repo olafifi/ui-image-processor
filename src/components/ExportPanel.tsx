@@ -1,6 +1,10 @@
 import { Icon } from './Icon';
 
-export function ExportPanel() {
+interface ExportPanelProps {
+  onOpenTemplate: () => void;
+}
+
+export function ExportPanel({ onOpenTemplate }: ExportPanelProps) {
   return (
     <aside className="panel">
       <div className="side-title">
@@ -29,7 +33,7 @@ export function ExportPanel() {
 
       <div className="spacer" />
       <div className="export-group">
-        <button type="button">
+        <button onClick={onOpenTemplate} type="button">
           <Icon name="save" />
           保存模板
         </button>

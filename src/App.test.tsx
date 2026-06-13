@@ -64,4 +64,14 @@ describe('App layout', () => {
     expect(screen.getByRole('button', { name: '下载命名 CSV' })).toBeInTheDocument();
     expect(screen.getByLabelText('上传命名 CSV')).toBeInTheDocument();
   });
+
+  it('opens the template workflow from the top bar', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /套用模板/ }));
+
+    expect(screen.getByRole('dialog', { name: '模板' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存当前设置为模板' })).toBeInTheDocument();
+  });
 });

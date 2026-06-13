@@ -1,6 +1,9 @@
 .superpowers/
 node_modules/
 dist/
+.codex/
+test-results/
+playwright-report/
 .env
 .env.*
 *.local

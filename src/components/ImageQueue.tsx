@@ -1,16 +1,32 @@
-const sampleImages = ['hero_ref_01.jpg', 'icon_raw.png', 'button_ref.webp'];
+import type { DragEvent } from 'react';
+import type { ImageQueueItem } from '../types';
 
-export function ImageQueue() {
+interface ImageQueueProps {
+  items: ImageQueueItem[];
+  onImportFiles: (files: Iterable<File>) => void;
+}
+
+export function ImageQueue({ items, onImportFiles }: ImageQueueProps) {
+  function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    onImportFiles(event.dataTransfer.files);
+  }
+
   return (
-    <aside className="rail" aria-label="图片队列">
+    <aside
+      className="rail"
+      aria-label="图片队列"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={handleDrop}
+    >
       <div className="side-title">
         <span>队列</span>
-        <span>{sampleImages.length}</span>
+        <span>{items.length}</span>
       </div>
 
-      {sampleImages.map((name, index) => (
-        <button className={index === 0 ? 'thumb active' : 'thumb'} key={name} type="button">
-          {name}
+      {items.map((item, index) => (
+        <button className={index === 0 ? 'thumb active' : 'thumb'} key={item.id} type="button">
+          {item.originalName}
         </button>
       ))}
 

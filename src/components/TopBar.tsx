@@ -1,6 +1,13 @@
+import { useRef } from 'react';
 import { Icon } from './Icon';
 
-export function TopBar() {
+interface TopBarProps {
+  onImportFiles: (files: Iterable<File>) => void;
+}
+
+export function TopBar({ onImportFiles }: TopBarProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
   return (
     <header className="topbar">
       <div className="brand">
@@ -9,10 +16,24 @@ export function TopBar() {
       </div>
 
       <nav className="primary-actions" aria-label="核心功能">
-        <button className="action primary" type="button">
+        <button className="action primary" onClick={() => inputRef.current?.click()} type="button">
           <Icon name="upload" />
           导入图片
         </button>
+        <input
+          accept="image/png,image/jpeg,image/webp"
+          aria-label="导入图片文件"
+          className="file-input"
+          multiple
+          onChange={(event) => {
+            if (event.currentTarget.files) {
+              onImportFiles(event.currentTarget.files);
+              event.currentTarget.value = '';
+            }
+          }}
+          ref={inputRef}
+          type="file"
+        />
         <button className="action" type="button">
           <Icon name="template" />
           套用模板

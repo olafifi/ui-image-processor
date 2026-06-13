@@ -144,6 +144,14 @@ svg {
   box-shadow: 0 9px 20px rgba(37, 99, 235, 0.25);
 }
 
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr) 190px;

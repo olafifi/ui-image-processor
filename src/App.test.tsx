@@ -1,8 +1,16 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
 describe('App layout', () => {
+  beforeEach(() => {
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:preview'),
+      revokeObjectURL: vi.fn()
+    });
+  });
+
   it('shows core top actions and keeps zip in export panel', () => {
     render(<App />);
 
@@ -31,5 +39,18 @@ describe('App layout', () => {
     expect(screen.getByRole('button', { name: '16:9' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '9:16' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '自由' })).toBeInTheDocument();
+  });
+
+  it('adds supported uploaded images to the queue', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['webp'], 'card.webp', { type: 'image/webp' }),
+      new File(['text'], 'note.txt', { type: 'text/plain' })
+    ]);
+
+    expect(screen.getByRole('button', { name: 'card.webp' })).toBeInTheDocument();
+    expect(screen.queryByText('note.txt')).not.toBeInTheDocument();
   });
 });

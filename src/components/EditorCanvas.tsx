@@ -28,6 +28,7 @@ interface EditorCanvasProps {
   onChangeCrop: (crop: CropRect) => void;
   onChangeCropRatio: (ratio: CropRatio) => void;
   onChangeTool: (tool: EditorTool) => void;
+  onAutoCutoutAll: () => void;
   onCutoutEdit: (edit: CutoutEditRequest) => void;
   onImageLoaded: (id: string, width: number, height: number) => void;
   onImportFiles: (files: Iterable<File>) => void;
@@ -48,6 +49,7 @@ export function EditorCanvas({
   onChangeCrop,
   onChangeCropRatio,
   onChangeTool,
+  onAutoCutoutAll,
   onCutoutEdit,
   onImageLoaded,
   onImportFiles,
@@ -59,6 +61,7 @@ export function EditorCanvas({
 }: EditorCanvasProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const editDragRef = useRef(false);
+  const strokePointsRef = useRef<Array<{ x: number; y: number }>>([]);
   const interactionRef = useRef<null | {
     crop: CropRect;
     startX: number;
@@ -180,7 +183,8 @@ export function EditorCanvas({
 
     if (activeTool === 'eraser' || activeTool === 'restore') {
       editDragRef.current = true;
-      commitPointerEdit(event);
+      strokePointsRef.current = [];
+      addStrokePoint(event);
       return;
     }
 
@@ -195,11 +199,36 @@ export function EditorCanvas({
     }
 
     event.preventDefault();
-    commitPointerEdit(event);
+    addStrokePoint(event);
   }
 
-  function endImageEdit() {
+  function cancelImageEdit() {
     editDragRef.current = false;
+    strokePointsRef.current = [];
+  }
+
+  function finishImageEdit(event: PointerEvent<HTMLDivElement>) {
+    if (!editDragRef.current || (activeTool !== 'eraser' && activeTool !== 'restore')) {
+      cancelImageEdit();
+      return;
+    }
+
+    event.preventDefault();
+    editDragRef.current = false;
+    const points = strokePointsRef.current;
+    strokePointsRef.current = [];
+
+    if (points.length === 0) {
+      return;
+    }
+
+    onCutoutEdit({
+      mode: activeTool === 'eraser' ? 'erase' : 'restore',
+      points,
+      radius: brushSize,
+      x: points[0].x,
+      y: points[0].y
+    });
   }
 
   function commitPointerEdit(event: PointerEvent<HTMLDivElement>) {
@@ -223,6 +252,21 @@ export function EditorCanvas({
     });
   }
 
+  function addStrokePoint(event: PointerEvent<HTMLDivElement>) {
+    const point = getImagePoint(event, activeItem);
+    if (!point) {
+      return;
+    }
+
+    const points = strokePointsRef.current;
+    const lastPoint = points.at(-1);
+    if (lastPoint && Math.hypot(lastPoint.x - point.x, lastPoint.y - point.y) < 1) {
+      return;
+    }
+
+    points.push(point);
+  }
+
   return (
     <main className="center">
       <ToolBar
@@ -231,6 +275,7 @@ export function EditorCanvas({
         canEdit={Boolean(activeItem)}
         canRedo={canRedo}
         canUndo={canUndo}
+        onAutoCutoutAll={onAutoCutoutAll}
         onChangeBrushSize={onChangeBrushSize}
         onChangeTool={onChangeTool}
         onRedo={onRedo}
@@ -250,10 +295,10 @@ export function EditorCanvas({
             <div className="canvas-preview" ref={previewRef}>
               <div
                 className={canEditCutout ? 'image-fit-layer cutout-interactive' : 'image-fit-layer'}
-                onPointerCancel={endImageEdit}
+                onPointerCancel={cancelImageEdit}
                 onPointerDown={beginImageEdit}
                 onPointerMove={moveImageEdit}
-                onPointerUp={endImageEdit}
+                onPointerUp={finishImageEdit}
                 style={{
                   height: `${imageRect.height}px`,
                   left: `${imageRect.x}px`,

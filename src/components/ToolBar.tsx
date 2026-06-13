@@ -7,6 +7,7 @@ interface ToolBarProps {
   canEdit: boolean;
   canRedo: boolean;
   canUndo: boolean;
+  onAutoCutoutAll: () => void;
   onChangeBrushSize: (size: number) => void;
   onChangeTool: (tool: EditorTool) => void;
   onRedo: () => void;
@@ -20,6 +21,7 @@ export function ToolBar({
   canEdit,
   canRedo,
   canUndo,
+  onAutoCutoutAll,
   onChangeBrushSize,
   onChangeTool,
   onRedo,
@@ -30,6 +32,14 @@ export function ToolBar({
 
   return (
     <div className="toolbar">
+      <div className="tool-group">
+        <span className="group-label">AI 抠图</span>
+        <button className="tool-btn tool-strong" disabled={!canEdit} onClick={onAutoCutoutAll} type="button">
+          <Icon name="sparkles" />
+          自动抠图全部
+        </button>
+      </div>
+
       <div className="tool-group">
         <span className="group-label">选择与修补</span>
         <ToolButton
@@ -46,23 +56,23 @@ export function ToolBar({
           icon="selectSubtract"
           label="反点选"
           onClick={() => onChangeTool('selectSubtract')}
-          title="反点选"
+          title="反点选：点一下要变透明的区域"
         />
         <ToolButton
           active={activeTool === 'eraser'}
           disabled={!canEdit}
           icon="eraser"
-          label="橡皮擦"
+          label="擦除透明"
           onClick={() => onChangeTool('eraser')}
-          title="橡皮擦"
+          title="擦除透明：刷过的地方会变透明"
         />
         <ToolButton
           active={activeTool === 'restore'}
           disabled={!canEdit}
           icon="brush"
-          label="恢复"
+          label="恢复前景"
           onClick={() => onChangeTool('restore')}
-          title="恢复画笔"
+          title="恢复前景：从自动抠图结果中刷回被误删的内容"
         />
         <ToolButton
           active={activeTool === 'crop'}

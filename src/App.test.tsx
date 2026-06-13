@@ -11,6 +11,12 @@ describe('App layout', () => {
     });
   });
 
+  const immediateCutout = vi.fn(async () => ({
+    kind: 'fake-checkerboard' as const,
+    message: '已自动抠图',
+    processedPreviewUrl: 'data:image/png;base64,processed'
+  }));
+
   it('shows core top actions and keeps zip in export panel', () => {
     render(<App />);
 
@@ -89,7 +95,14 @@ describe('App layout', () => {
     const downloadBlob = vi.fn();
     const mockSource = { naturalWidth: 800, naturalHeight: 600 } as HTMLImageElement;
 
-    render(<App exportImage={exportImage} loadImage={() => Promise.resolve(mockSource)} downloadBlob={downloadBlob} />);
+    render(
+      <App
+        autoCutout={immediateCutout}
+        downloadBlob={downloadBlob}
+        exportImage={exportImage}
+        loadImage={() => Promise.resolve(mockSource)}
+      />
+    );
 
     await user.upload(screen.getByLabelText('导入图片文件'), [
       new File(['image'], 'card.webp', { type: 'image/webp' })
@@ -135,6 +148,53 @@ describe('App layout', () => {
     expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'fake-transparent.png');
   });
 
+  it('waits for automatic cutout before exporting an image immediately after import', async () => {
+    const user = userEvent.setup();
+    const exportImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
+    const downloadBlob = vi.fn();
+    const mockSource = { naturalWidth: 800, naturalHeight: 600 } as HTMLImageElement;
+    const loadImage = vi.fn(async () => mockSource);
+    let resolveCutout!: (value: {
+      kind: 'fake-checkerboard';
+      message: string;
+      processedPreviewUrl: string;
+    }) => void;
+    const cutoutPromise = new Promise<{
+      kind: 'fake-checkerboard';
+      message: string;
+      processedPreviewUrl: string;
+    }>((resolve) => {
+      resolveCutout = resolve;
+    });
+    const autoCutout = vi.fn(() => cutoutPromise);
+
+    render(
+      <App
+        autoCutout={autoCutout}
+        downloadBlob={downloadBlob}
+        exportImage={exportImage}
+        loadImage={loadImage}
+      />
+    );
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image'], 'quick-export.png', { type: 'image/png' })
+    ]);
+    await waitFor(() => expect(autoCutout).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: /导出当前 PNG/ }));
+
+    expect(loadImage).not.toHaveBeenCalledWith('blob:quick-export.png');
+
+    resolveCutout({
+      kind: 'fake-checkerboard',
+      message: '已自动抠图',
+      processedPreviewUrl: 'data:image/png;base64,processed-quick'
+    });
+
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'quick-export.png'));
+    expect(loadImage).toHaveBeenCalledWith('data:image/png;base64,processed-quick');
+  });
+
   it('exports all queued images into a zip', async () => {
     const user = userEvent.setup();
     const exportImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
@@ -147,6 +207,7 @@ describe('App layout', () => {
         createZip={createZip}
         downloadBlob={downloadBlob}
         exportImage={exportImage}
+        autoCutout={immediateCutout}
         loadImage={() => Promise.resolve(mockSource)}
       />
     );

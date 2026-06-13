@@ -268,8 +268,11 @@ svg {
 }
 
 .group-label {
+  flex: 0 0 auto;
   font-size: 11px;
+  line-height: 1;
   margin-right: 2px;
+  white-space: nowrap;
 }
 
 .tool-btn,

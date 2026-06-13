@@ -19,6 +19,7 @@ export interface CutoutEditRequest {
   x: number;
   y: number;
   radius: number;
+  points?: Array<{ x: number; y: number }>;
 }
 
 export interface CropRect {
@@ -46,6 +47,7 @@ export interface ImageQueueItem {
   mimeType: string;
   previewUrl: string;
   processedPreviewUrl?: string;
+  baseCutoutUrl?: string;
   cutoutStatus: CutoutStatus;
   cutoutKind?: CutoutKind;
   cutoutMessage?: string;

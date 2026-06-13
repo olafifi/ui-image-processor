@@ -4,6 +4,7 @@ type IconName =
   | 'upload'
   | 'template'
   | 'rename'
+  | 'sparkles'
   | 'selectAdd'
   | 'selectSubtract'
   | 'eraser'
@@ -52,6 +53,13 @@ const paths: Record<IconName, ReactElement> = {
       <path d="M17 6v12" />
       <path d="M14 9l3-3 3 3" />
       <path d="M14 15l3 3 3-3" />
+    </>
+  ),
+  sparkles: (
+    <>
+      <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z" />
+      <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
+      <path d="M5 14l.7 1.8L8 16.5l-2.3.7L5 19l-.7-1.8L2 16.5l2.3-.7z" />
     </>
   ),
   selectAdd: (

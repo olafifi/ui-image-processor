@@ -22,15 +22,16 @@ export interface PointEditInput {
 export async function applyCutoutEditToImages(
   original: CanvasImageSource,
   processed: CanvasImageSource,
-  edit: { mode: BrushEditMode | PointEditMode; x: number; y: number; radius: number }
+  edit: { mode: BrushEditMode | PointEditMode; x: number; y: number; radius: number; points?: Array<{ x: number; y: number }> }
 ): Promise<string> {
   const originalData = drawSourceToImageData(original);
   const processedData = drawSourceToImageData(processed, originalData.width, originalData.height);
   const result =
     edit.mode === 'erase' || edit.mode === 'restore'
-      ? applyBrushEditToImageData({
+      ? applyBrushStrokeToImageData({
           mode: edit.mode,
           original: originalData,
+          points: edit.points?.length ? edit.points : [{ x: edit.x, y: edit.y }],
           processed: processedData,
           radius: edit.radius,
           x: edit.x,
@@ -49,32 +50,50 @@ export async function applyCutoutEditToImages(
 }
 
 export function applyBrushEditToImageData(input: BrushEditInput): ImageData {
+  const points = [{ x: input.x, y: input.y }];
+  return applyBrushStrokeToImageData({ ...input, points });
+}
+
+export function applyBrushStrokeToImageData(input: BrushEditInput & { points: Array<{ x: number; y: number }> }): ImageData {
   const output = cloneImageData(input.processed);
-  const radius = Math.max(1, input.radius);
+  for (const point of input.points) {
+    applyBrushPoint(output, input.original, input.mode, point.x, point.y, input.radius);
+  }
+
+  return output;
+}
+
+function applyBrushPoint(
+  output: ImageData,
+  original: ImageData,
+  mode: BrushEditMode,
+  xPosition: number,
+  yPosition: number,
+  brushRadius: number
+) {
+  const radius = Math.max(1, brushRadius);
   const radiusSquared = radius * radius;
-  const minX = Math.max(0, Math.floor(input.x - radius));
-  const maxX = Math.min(output.width - 1, Math.ceil(input.x + radius));
-  const minY = Math.max(0, Math.floor(input.y - radius));
-  const maxY = Math.min(output.height - 1, Math.ceil(input.y + radius));
+  const minX = Math.max(0, Math.floor(xPosition - radius));
+  const maxX = Math.min(output.width - 1, Math.ceil(xPosition + radius));
+  const minY = Math.max(0, Math.floor(yPosition - radius));
+  const maxY = Math.min(output.height - 1, Math.ceil(yPosition + radius));
 
   for (let y = minY; y <= maxY; y += 1) {
     for (let x = minX; x <= maxX; x += 1) {
-      const dx = x - input.x;
-      const dy = y - input.y;
+      const dx = x - xPosition;
+      const dy = y - yPosition;
       if (dx * dx + dy * dy > radiusSquared) {
         continue;
       }
 
       const index = (y * output.width + x) * 4;
-      if (input.mode === 'erase') {
+      if (mode === 'erase') {
         output.data[index + 3] = 0;
       } else {
-        output.data.set(input.original.data.slice(index, index + 4), index);
+        output.data.set(original.data.slice(index, index + 4), index);
       }
     }
   }
-
-  return output;
 }
 
 export function applyPointEditToImageData(input: PointEditInput): ImageData {

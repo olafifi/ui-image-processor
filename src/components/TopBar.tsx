@@ -3,9 +3,10 @@ import { Icon } from './Icon';
 
 interface TopBarProps {
   onImportFiles: (files: Iterable<File>) => void;
+  onOpenRename: () => void;
 }
 
-export function TopBar({ onImportFiles }: TopBarProps) {
+export function TopBar({ onImportFiles, onOpenRename }: TopBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -38,7 +39,7 @@ export function TopBar({ onImportFiles }: TopBarProps) {
           <Icon name="template" />
           套用模板
         </button>
-        <button className="action" type="button">
+        <button className="action" onClick={onOpenRename} type="button">
           <Icon name="rename" />
           批量重命名
         </button>

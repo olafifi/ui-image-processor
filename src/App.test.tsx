@@ -53,4 +53,15 @@ describe('App layout', () => {
     expect(screen.getByRole('button', { name: 'card.webp' })).toBeInTheDocument();
     expect(screen.queryByText('note.txt')).not.toBeInTheDocument();
   });
+
+  it('opens the csv rename workflow from the top bar', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /批量重命名/ }));
+
+    expect(screen.getByRole('dialog', { name: '批量重命名' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下载命名 CSV' })).toBeInTheDocument();
+    expect(screen.getByLabelText('上传命名 CSV')).toBeInTheDocument();
+  });
 });

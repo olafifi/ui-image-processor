@@ -26,6 +26,9 @@ interface ColorCluster extends Color {
 const TRANSPARENT_ALPHA_THRESHOLD = 250;
 const LIGHT_BACKGROUND_MIN = 218;
 const BACKGROUND_TOLERANCE = 28;
+const FOREGROUND_SEED_DISTANCE = 34;
+const FOREGROUND_DILATION_RATIO = 0.024;
+const MAX_FOREGROUND_DILATION_RADIUS = 32;
 
 export async function autoCutoutItem(item: ImageQueueItem): Promise<AutoCutoutResult> {
   const image = await loadHtmlImage(item.previewUrl);
@@ -72,8 +75,9 @@ export function removeBackgroundFromImageData(input: ImageData): BackgroundRemov
     };
   }
 
-  const removedPixelCount = floodFillBackground(output, clusters);
   const kind = isCheckerboardLike(clusters) ? 'fake-checkerboard' : 'light-background';
+  const protectionMask = kind === 'fake-checkerboard' ? createForegroundProtectionMask(output, clusters) : undefined;
+  const removedPixelCount = floodFillBackground(output, clusters, protectionMask);
 
   return {
     imageData: output,
@@ -144,7 +148,7 @@ function getBorderBackgroundClusters(imageData: ImageData): ColorCluster[] {
     .slice(0, 4);
 }
 
-function floodFillBackground(imageData: ImageData, clusters: Color[]): number {
+function floodFillBackground(imageData: ImageData, clusters: Color[], protectionMask?: Uint8Array): number {
   const { width, height, data } = imageData;
   const visited = new Uint8Array(width * height);
   const queue: number[] = [];
@@ -152,7 +156,11 @@ function floodFillBackground(imageData: ImageData, clusters: Color[]): number {
 
   forEachBorderPixel(width, height, (x, y) => {
     const pixelIndex = y * width + x;
-    if (visited[pixelIndex] || !isBackgroundLike(getPixelColor(imageData, x, y), clusters)) {
+    if (
+      visited[pixelIndex] ||
+      protectionMask?.[pixelIndex] ||
+      !isBackgroundLike(getPixelColor(imageData, x, y), clusters)
+    ) {
       return;
     }
     visited[pixelIndex] = 1;
@@ -183,13 +191,93 @@ function floodFillBackground(imageData: ImageData, clusters: Color[]): number {
     }
 
     const pixelIndex = y * width + x;
-    if (visited[pixelIndex] || !isBackgroundLike(getPixelColor(imageData, x, y), clusters)) {
+    if (
+      visited[pixelIndex] ||
+      protectionMask?.[pixelIndex] ||
+      !isBackgroundLike(getPixelColor(imageData, x, y), clusters)
+    ) {
       return;
     }
 
     visited[pixelIndex] = 1;
     queue.push(pixelIndex);
   }
+}
+
+function createForegroundProtectionMask(imageData: ImageData, clusters: Color[]): Uint8Array {
+  const { width, height } = imageData;
+  const totalPixels = width * height;
+  const protectedPixels = new Uint8Array(totalPixels);
+  const distances = new Uint8Array(totalPixels);
+  const queue = new Uint32Array(totalPixels);
+  const radius = Math.max(
+    1,
+    Math.min(MAX_FOREGROUND_DILATION_RADIUS, Math.round(Math.min(width, height) * FOREGROUND_DILATION_RATIO))
+  );
+  let cursor = 0;
+  let queueLength = 0;
+
+  for (let pixelIndex = 0; pixelIndex < totalPixels; pixelIndex += 1) {
+    const dataIndex = pixelIndex * 4;
+    const color = {
+      r: imageData.data[dataIndex],
+      g: imageData.data[dataIndex + 1],
+      b: imageData.data[dataIndex + 2]
+    };
+    if (!isForegroundSeed(color, clusters)) {
+      continue;
+    }
+
+    protectedPixels[pixelIndex] = 1;
+    queue[queueLength] = pixelIndex;
+    queueLength += 1;
+  }
+
+  while (cursor < queueLength) {
+    const pixelIndex = queue[cursor];
+    cursor += 1;
+
+    const distance = distances[pixelIndex];
+    if (distance >= radius) {
+      continue;
+    }
+
+    const x = pixelIndex % width;
+    const y = Math.floor(pixelIndex / width);
+    visit(x - 1, y, distance + 1);
+    visit(x + 1, y, distance + 1);
+    visit(x, y - 1, distance + 1);
+    visit(x, y + 1, distance + 1);
+    visit(x - 1, y - 1, distance + 1);
+    visit(x + 1, y - 1, distance + 1);
+    visit(x - 1, y + 1, distance + 1);
+    visit(x + 1, y + 1, distance + 1);
+  }
+
+  return protectedPixels;
+
+  function visit(x: number, y: number, distance: number) {
+    if (x < 0 || y < 0 || x >= width || y >= height) {
+      return;
+    }
+
+    const nextPixelIndex = y * width + x;
+    if (protectedPixels[nextPixelIndex]) {
+      return;
+    }
+
+    protectedPixels[nextPixelIndex] = 1;
+    distances[nextPixelIndex] = distance;
+    queue[queueLength] = nextPixelIndex;
+    queueLength += 1;
+  }
+}
+
+function isForegroundSeed(color: Color, clusters: Color[]): boolean {
+  const max = Math.max(color.r, color.g, color.b);
+  const min = Math.min(color.r, color.g, color.b);
+  const nearestBackgroundDistance = Math.min(...clusters.map((cluster) => colorDistance(color, cluster)));
+  return min < 210 || max - min > 30 || nearestBackgroundDistance > FOREGROUND_SEED_DISTANCE;
 }
 
 function forEachBorderPixel(width: number, height: number, visitor: (x: number, y: number) => void) {

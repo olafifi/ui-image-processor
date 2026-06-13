@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { buildRenameCsv, parseRenameCsv } from '../lib/csvRename';
+import { buildRenameCsv, parseRenameCsv, parseRenameXlsx } from '../lib/csvRename';
 import type { RenameMapping } from '../types';
 
 interface RenameDialogProps {
@@ -23,9 +23,10 @@ export function RenameDialog({ oldFilenames, onClose, onApplyMappings }: RenameD
     URL.revokeObjectURL(url);
   }
 
-  async function handleCsvFile(file: File) {
-    const csv = await file.text();
-    const result = parseRenameCsv(csv, oldFilenames);
+  async function handleRenameFile(file: File) {
+    const result = isXlsxFile(file)
+      ? await parseRenameXlsx(await file.arrayBuffer(), oldFilenames)
+      : parseRenameCsv(await file.text(), oldFilenames);
     setErrors(result.errors);
     setMappedCount(result.mappings.filter((mapping) => mapping.newFilename).length);
 
@@ -51,14 +52,14 @@ export function RenameDialog({ oldFilenames, onClose, onApplyMappings }: RenameD
             下载命名 CSV
           </button>
           <label className="csv-upload">
-            上传命名 CSV
+            上传命名 CSV/XLSX
             <input
-              accept=".csv,text/csv"
-              aria-label="上传命名 CSV"
+              accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              aria-label="上传命名 CSV/XLSX"
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0];
                 if (file) {
-                  void handleCsvFile(file);
+                  void handleRenameFile(file);
                   event.currentTarget.value = '';
                 }
               }}
@@ -85,5 +86,12 @@ export function RenameDialog({ oldFilenames, onClose, onApplyMappings }: RenameD
         )}
       </section>
     </div>
+  );
+}
+
+function isXlsxFile(file: File): boolean {
+  return (
+    file.name.toLowerCase().endsWith('.xlsx') ||
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   );
 }

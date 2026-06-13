@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import JSZip from 'jszip';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
@@ -68,9 +69,35 @@ describe('App layout', () => {
 
     expect(screen.getByRole('region', { name: '批量重命名工作区' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下载命名 CSV' })).toBeInTheDocument();
-    expect(screen.getByLabelText('上传命名 CSV')).toBeInTheDocument();
+    expect(screen.getByLabelText('上传命名 CSV/XLSX')).toBeInTheDocument();
     expect(screen.getAllByText('旧文件名').length).toBeGreaterThan(0);
     expect(screen.getAllByText('新文件名').length).toBeGreaterThan(0);
+  });
+
+  it('imports xlsx rename mappings from the rename workspace', async () => {
+    const user = userEvent.setup();
+    render(<App autoCutout={immediateCutout} />);
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image-a'], 'a.webp', { type: 'image/webp' }),
+      new File(['image-b'], 'b.png', { type: 'image/png' })
+    ]);
+    await user.click(screen.getByRole('button', { name: /批量重命名/ }));
+
+    const workbook = await buildRenameWorkbook([
+      ['index', 'old_filename', 'new_filename'],
+      ['1', 'a.webp', 'ui_cat_surprised'],
+      ['2', 'b.png', 'ui_cat_angry']
+    ]);
+    await user.upload(
+      screen.getByLabelText('上传命名 CSV/XLSX'),
+      new File([workbook], 'rename.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
+    );
+
+    await waitFor(() => expect(screen.getByDisplayValue('ui_cat_surprised')).toBeInTheDocument());
+    expect(screen.getAllByText('ui_cat_angry').length).toBeGreaterThan(0);
   });
 
   it('opens the template workflow from the top bar', async () => {
@@ -229,3 +256,64 @@ describe('App layout', () => {
     expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'ui-image-processor.zip');
   });
 });
+
+async function buildRenameWorkbook(rows: string[][]): Promise<ArrayBuffer> {
+  const zip = new JSZip();
+  const sharedStrings = rows.flat();
+  const sharedStringXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${sharedStrings.length}" uniqueCount="${sharedStrings.length}">
+${sharedStrings.map((value) => `<si><t>${escapeXml(value)}</t></si>`).join('')}
+</sst>`;
+  let sharedStringIndex = 0;
+  const sheetRows = rows
+    .map((row, rowIndex) => {
+      const cells = row
+        .map((_, columnIndex) => {
+          const cell = `${columnName(columnIndex)}${rowIndex + 1}`;
+          return `<c r="${cell}" t="s"><v>${sharedStringIndex++}</v></c>`;
+        })
+        .join('');
+      return `<row r="${rowIndex + 1}">${cells}</row>`;
+    })
+    .join('');
+
+  zip.file(
+    '[Content_Types].xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" />'
+  );
+  zip.file(
+    'xl/workbook.xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>'
+  );
+  zip.file(
+    'xl/_rels/workbook.xml.rels',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'
+  );
+  zip.file('xl/sharedStrings.xml', sharedStringXml);
+  zip.file(
+    'xl/worksheets/sheet1.xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetRows}</sheetData></worksheet>`
+  );
+
+  return zip.generateAsync({ type: 'arraybuffer' });
+}
+
+function columnName(index: number): string {
+  let name = '';
+  let value = index + 1;
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    value = Math.floor((value - remainder) / 26);
+  }
+  return name;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}

@@ -69,4 +69,31 @@ describe('background removal', () => {
     expect(alphaAt(result.imageData, 0, 0)).toBe(0);
     expect(alphaAt(result.imageData, 3, 3)).toBe(255);
   });
+
+  it('keeps textured light foreground that touches a fake checkerboard background', () => {
+    const imageData = makeImageData(16, 16, [252, 252, 252, 255]);
+    for (let y = 0; y < imageData.height; y += 1) {
+      for (let x = 0; x < imageData.width; x += 1) {
+        const checker = (Math.floor(x / 2) + Math.floor(y / 2)) % 2 === 0;
+        setPixel(imageData, x, y, checker ? [242, 242, 242, 255] : [254, 254, 254, 255]);
+      }
+    }
+
+    for (let y = 5; y <= 11; y += 1) {
+      for (let x = 4; x <= 11; x += 1) {
+        setPixel(imageData, x, y, [248, 246, 238, 255]);
+      }
+    }
+    for (let x = 4; x <= 11; x += 2) {
+      setPixel(imageData, x, 7, [210, 190, 160, 255]);
+      setPixel(imageData, x, 10, [205, 186, 154, 255]);
+    }
+
+    const result = removeBackgroundFromImageData(imageData);
+
+    expect(result.kind).toBe('fake-checkerboard');
+    expect(alphaAt(result.imageData, 0, 0)).toBe(0);
+    expect(alphaAt(result.imageData, 15, 15)).toBe(0);
+    expect(alphaAt(result.imageData, 8, 8)).toBe(255);
+  });
 });

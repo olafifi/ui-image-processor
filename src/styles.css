@@ -32,6 +32,11 @@ select {
   font: inherit;
 }
 
+input,
+select {
+  min-width: 0;
+}
+
 button {
   height: 32px;
   padding: 0 11px;
@@ -164,7 +169,7 @@ svg {
 
 .workspace {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) 190px;
+  grid-template-columns: 104px minmax(0, 1fr) 248px;
   gap: 12px;
   min-height: 0;
 }
@@ -332,6 +337,39 @@ svg {
   outline: 1px solid rgba(255, 255, 255, 0.86);
 }
 
+.canvas.has-image {
+  background: rgba(255, 255, 255, 0.7);
+  color: inherit;
+  padding: 14px;
+}
+
+.canvas-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.canvas-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.crop-frame {
+  position: absolute;
+  border: 2px solid #f8fafc;
+  box-shadow:
+    0 0 0 999px rgba(15, 23, 42, 0.2),
+    0 0 0 1px rgba(37, 99, 235, 0.8);
+  pointer-events: none;
+}
+
 .drop-overlay {
   position: absolute;
   left: 16px;
@@ -353,6 +391,13 @@ svg {
   border-top: 1px solid #e4eaf2;
   padding-top: 9px;
   font-size: 12px;
+}
+
+.crop-active {
+  border-color: #9bb7f4;
+  background: var(--accent-soft);
+  color: #1d4ed8;
+  font-weight: 700;
 }
 
 .summary {
@@ -378,6 +423,53 @@ svg {
   font-size: 12px;
 }
 
+.inline-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.inline-inputs label,
+.stacked-control {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.inline-inputs input,
+.stacked-control input,
+.stacked-control select {
+  width: 100%;
+  height: 30px;
+  border: 1px solid #cfd9e6;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  padding: 0 7px;
+}
+
+.stacked-control {
+  margin-top: 7px;
+}
+
+.range-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+}
+
+.range-row input {
+  width: 100%;
+}
+
+.range-row span {
+  text-align: right;
+  color: #334155;
+  font-weight: 700;
+}
+
 .spacer {
   flex: 1;
 }
@@ -387,6 +479,26 @@ svg {
   gap: 7px;
   padding-top: 9px;
   border-top: 1px solid #e4eaf2;
+}
+
+.panel-status,
+.panel-error {
+  border-radius: 6px;
+  padding: 7px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.panel-status {
+  border: 1px solid rgba(22, 138, 106, 0.22);
+  background: rgba(22, 138, 106, 0.08);
+  color: #0f6b54;
+}
+
+.panel-error {
+  border: 1px solid rgba(180, 35, 24, 0.22);
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
 }
 
 .modal-backdrop {

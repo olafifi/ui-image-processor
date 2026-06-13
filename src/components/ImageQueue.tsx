@@ -2,11 +2,13 @@ import type { DragEvent } from 'react';
 import type { ImageQueueItem } from '../types';
 
 interface ImageQueueProps {
+  activeId?: string;
   items: ImageQueueItem[];
+  onSelectItem: (id: string) => void;
   onImportFiles: (files: Iterable<File>) => void;
 }
 
-export function ImageQueue({ items, onImportFiles }: ImageQueueProps) {
+export function ImageQueue({ activeId, items, onImportFiles, onSelectItem }: ImageQueueProps) {
   function handleDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     onImportFiles(event.dataTransfer.files);
@@ -24,8 +26,13 @@ export function ImageQueue({ items, onImportFiles }: ImageQueueProps) {
         <span>{items.length}</span>
       </div>
 
-      {items.map((item, index) => (
-        <button className={index === 0 ? 'thumb active' : 'thumb'} key={item.id} type="button">
+      {items.map((item) => (
+        <button
+          className={item.id === activeId ? 'thumb active' : 'thumb'}
+          key={item.id}
+          onClick={() => onSelectItem(item.id)}
+          type="button"
+        >
           {item.originalName}
         </button>
       ))}

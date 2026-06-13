@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import { extensionForFormat } from './canvasExport';
 import type { ExportFormat } from '../types';
 
-interface ZipFileSource {
+export interface ZipFileSource {
   originalName: string;
   targetName: string;
   blob: Blob;

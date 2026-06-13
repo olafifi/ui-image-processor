@@ -6,7 +6,7 @@ import { App } from './App';
 describe('App layout', () => {
   beforeEach(() => {
     vi.stubGlobal('URL', {
-      createObjectURL: vi.fn(() => 'blob:preview'),
+      createObjectURL: vi.fn((file: File | Blob) => `blob:${'name' in file ? file.name : 'download'}`),
       revokeObjectURL: vi.fn()
     });
   });
@@ -79,5 +79,59 @@ describe('App layout', () => {
     render(<App />);
 
     expect(screen.getByText('降级模式')).toBeInTheDocument();
+  });
+
+  it('exports the active image through the current export button', async () => {
+    const user = userEvent.setup();
+    const exportImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
+    const downloadBlob = vi.fn();
+    const mockSource = { naturalWidth: 800, naturalHeight: 600 } as HTMLImageElement;
+
+    render(<App exportImage={exportImage} loadImage={() => Promise.resolve(mockSource)} downloadBlob={downloadBlob} />);
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image'], 'card.webp', { type: 'image/webp' })
+    ]);
+    await user.click(screen.getByRole('button', { name: /导出当前 PNG/ }));
+
+    expect(exportImage).toHaveBeenCalledWith(
+      mockSource,
+      expect.objectContaining({ ratio: '1:1' }),
+      expect.objectContaining({ format: 'png' })
+    );
+    expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'card.png');
+  });
+
+  it('exports all queued images into a zip', async () => {
+    const user = userEvent.setup();
+    const exportImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
+    const createZip = vi.fn(async () => new Blob(['zip'], { type: 'application/zip' }));
+    const downloadBlob = vi.fn();
+    const mockSource = { naturalWidth: 800, naturalHeight: 600 } as HTMLImageElement;
+
+    render(
+      <App
+        createZip={createZip}
+        downloadBlob={downloadBlob}
+        exportImage={exportImage}
+        loadImage={() => Promise.resolve(mockSource)}
+      />
+    );
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image'], 'card.webp', { type: 'image/webp' }),
+      new File(['image'], 'icon.jpg', { type: 'image/jpeg' })
+    ]);
+    await user.click(screen.getByRole('button', { name: /下载 ZIP/ }));
+
+    expect(exportImage).toHaveBeenCalledTimes(2);
+    expect(createZip).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({ originalName: 'card.webp', targetName: '' }),
+        expect.objectContaining({ originalName: 'icon.jpg', targetName: '' })
+      ],
+      'png'
+    );
+    expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'ui-image-processor.zip');
   });
 });

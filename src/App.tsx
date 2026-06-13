@@ -13,7 +13,7 @@ import { loadImageSource } from './lib/imageLoader';
 import { detectBrowserCapabilities, detectSamMode } from './lib/samAdapter';
 import { createLocalStorageTemplateStore, type TemplateDraft } from './lib/templateStore';
 import { createExportZip, resolveExportFilename, type ZipFileSource } from './lib/zipExport';
-import type { AppMode, CropRatio, ExportSettings, ImageQueueItem, Template } from './types';
+import type { AppMode, CropRatio, CropRect, ExportSettings, ImageQueueItem, Template } from './types';
 
 const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   format: 'png',
@@ -145,6 +145,16 @@ export function App({
     [updateActiveItem]
   );
 
+  const changeCrop = useCallback(
+    (crop: CropRect) => {
+      updateActiveItem((item) => ({
+        ...item,
+        crop
+      }));
+    },
+    [updateActiveItem]
+  );
+
   const toggleRounded = useCallback(() => {
     updateActiveItem((item) => ({
       ...item,
@@ -167,7 +177,10 @@ export function App({
     setItems((current) =>
       current.map((item) => ({
         ...item,
-        crop: fitCropToRatio(item.naturalWidth, item.naturalHeight, activeItem.crop.ratio),
+        crop:
+          activeItem.crop.ratio === 'free'
+            ? activeItem.crop
+            : fitCropToRatio(item.naturalWidth, item.naturalHeight, activeItem.crop.ratio),
         exportSettings: { ...activeItem.exportSettings }
       }))
     );
@@ -269,6 +282,7 @@ export function App({
         />
         <EditorCanvas
           activeItem={activeItem}
+          onChangeCrop={changeCrop}
           onChangeCropRatio={changeCropRatio}
           onImageLoaded={updateImageDimensions}
           onImportFiles={importFiles}

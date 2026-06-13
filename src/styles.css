@@ -356,7 +356,13 @@ svg {
   background: rgba(255, 255, 255, 0.55);
 }
 
-.canvas-preview img {
+.image-fit-layer {
+  position: absolute;
+  min-width: 0;
+  min-height: 0;
+}
+
+.image-fit-layer img {
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -374,6 +380,30 @@ svg {
     0 0 0 999px rgba(15, 23, 42, 0.2),
     0 0 0 1px rgba(37, 99, 235, 0.8);
   pointer-events: none;
+}
+
+.crop-frame-editable {
+  cursor: move;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.crop-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 3px 8px rgba(24, 34, 53, 0.28);
+  touch-action: none;
+}
+
+.crop-handle-se {
+  right: -10px;
+  bottom: -10px;
+  cursor: nwse-resize;
 }
 
 .drop-overlay {

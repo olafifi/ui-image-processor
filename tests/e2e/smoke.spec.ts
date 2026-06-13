@@ -45,6 +45,37 @@ test('fits a high resolution image inside the preview bounds', async ({ page }) 
   expect(bounds!.imageWidth).toBeLessThanOrEqual(bounds!.previewWidth + 1);
 });
 
+test('free crop mode can be resized directly on the canvas', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByLabel('导入图片文件').setInputFiles({
+    name: 'free-crop.png',
+    mimeType: 'image/png',
+    buffer: createSolidPng(900, 1600)
+  });
+  await page.getByRole('img', { name: 'free-crop.png' }).waitFor();
+  await page.getByRole('button', { name: '自由' }).click();
+
+  const frame = page.locator('.crop-frame');
+  const handle = page.getByLabel('调整裁剪框右下角');
+  await expect(handle).toBeVisible();
+
+  const before = await frame.boundingBox();
+  expect(before).not.toBeNull();
+
+  await handle.dragTo(page.locator('.canvas-preview'), {
+    targetPosition: {
+      x: Math.round(before!.x - (await page.locator('.canvas-preview').boundingBox())!.x + before!.width - 80),
+      y: Math.round(before!.y - (await page.locator('.canvas-preview').boundingBox())!.y + before!.height - 120)
+    }
+  });
+
+  const after = await frame.boundingBox();
+  expect(after).not.toBeNull();
+  expect(after!.width).toBeLessThan(before!.width - 20);
+  expect(after!.height).toBeLessThan(before!.height - 20);
+});
+
 function createSolidPng(width: number, height: number): Buffer {
   const bytesPerPixel = 3;
   const stride = 1 + width * bytesPerPixel;

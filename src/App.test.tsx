@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import JSZip from 'jszip';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,9 +21,14 @@ describe('App layout', () => {
   it('shows core top actions and keeps zip in export panel', () => {
     render(<App />);
 
+    const workspaceSwitcher = screen.getByRole('group', { name: '工作区切换' });
     expect(screen.getByRole('button', { name: /导入图片/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /套用模板/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /批量重命名/ })).toBeInTheDocument();
+    expect(within(workspaceSwitcher).getByRole('button', { name: /抠图\/裁剪/ })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(within(workspaceSwitcher).getByRole('button', { name: /套用模板/ })).toBeInTheDocument();
+    expect(within(workspaceSwitcher).getByRole('button', { name: /批量重命名/ })).toBeInTheDocument();
     expect(screen.getByText('模板与导出')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /下载 ZIP/ })).toBeInTheDocument();
   });
@@ -72,6 +77,31 @@ describe('App layout', () => {
     expect(screen.getByLabelText('上传命名 CSV/XLSX')).toBeInTheDocument();
     expect(screen.getAllByText('旧文件名').length).toBeGreaterThan(0);
     expect(screen.getAllByText('新文件名').length).toBeGreaterThan(0);
+  });
+
+  it('switches back from rename workspace to the edit workspace without losing the active image', async () => {
+    const user = userEvent.setup();
+    render(<App autoCutout={immediateCutout} />);
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image'], 'switch-test.webp', { type: 'image/webp' })
+    ]);
+    await user.click(screen.getByRole('button', { name: /批量重命名/ }));
+    expect(screen.getByRole('region', { name: '批量重命名工作区' })).toBeInTheDocument();
+
+    const workspaceSwitcher = screen.getByRole('group', { name: '工作区切换' });
+    await user.click(within(workspaceSwitcher).getByRole('button', { name: /抠图\/裁剪/ }));
+
+    expect(screen.queryByRole('region', { name: '批量重命名工作区' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'switch-test.webp' })).toBeInTheDocument();
+    expect(within(workspaceSwitcher).getByRole('button', { name: /批量重命名/ })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    );
+    expect(within(workspaceSwitcher).getByRole('button', { name: /抠图\/裁剪/ })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
   });
 
   it('imports xlsx rename mappings from the rename workspace', async () => {

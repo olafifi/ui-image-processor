@@ -1,15 +1,26 @@
 import { useRef } from 'react';
 import { Icon } from './Icon';
-import type { AppMode } from '../types';
+import type { AppMode, WorkspaceMode } from '../types';
 
 interface TopBarProps {
+  isTemplateOpen: boolean;
   onImportFiles: (files: Iterable<File>) => void;
+  onOpenEdit: () => void;
   onOpenRename: () => void;
   onOpenTemplate: () => void;
   samMode: AppMode;
+  workspaceMode: WorkspaceMode;
 }
 
-export function TopBar({ onImportFiles, onOpenRename, onOpenTemplate, samMode }: TopBarProps) {
+export function TopBar({
+  isTemplateOpen,
+  onImportFiles,
+  onOpenEdit,
+  onOpenRename,
+  onOpenTemplate,
+  samMode,
+  workspaceMode
+}: TopBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -20,7 +31,7 @@ export function TopBar({ onImportFiles, onOpenRename, onOpenTemplate, samMode }:
       </div>
 
       <nav className="primary-actions" aria-label="核心功能">
-        <button className="action primary" onClick={() => inputRef.current?.click()} type="button">
+        <button className="action primary import-action" onClick={() => inputRef.current?.click()} type="button">
           <Icon name="upload" />
           导入图片
         </button>
@@ -38,14 +49,35 @@ export function TopBar({ onImportFiles, onOpenRename, onOpenTemplate, samMode }:
           ref={inputRef}
           type="file"
         />
-        <button className="action" onClick={onOpenTemplate} type="button">
-          <Icon name="template" />
-          套用模板
-        </button>
-        <button className="action" onClick={onOpenRename} type="button">
-          <Icon name="rename" />
-          批量重命名
-        </button>
+        <div className="workspace-actions" role="group" aria-label="工作区切换">
+          <button
+            aria-pressed={workspaceMode === 'edit'}
+            className={workspaceMode === 'edit' ? 'workspace-action active' : 'workspace-action'}
+            onClick={onOpenEdit}
+            type="button"
+          >
+            <Icon name="crop" />
+            抠图/裁剪
+          </button>
+          <button
+            aria-pressed={isTemplateOpen}
+            className={isTemplateOpen ? 'workspace-action active' : 'workspace-action'}
+            onClick={onOpenTemplate}
+            type="button"
+          >
+            <Icon name="template" />
+            保存/套用模板
+          </button>
+          <button
+            aria-pressed={workspaceMode === 'rename'}
+            className={workspaceMode === 'rename' ? 'workspace-action active' : 'workspace-action'}
+            onClick={onOpenRename}
+            type="button"
+          >
+            <Icon name="rename" />
+            批量重命名
+          </button>
+        </div>
       </nav>
 
       <div className="status">

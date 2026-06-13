@@ -1,17 +1,21 @@
 :root {
   font-family: Inter, "Microsoft YaHei", system-ui, sans-serif;
-  --bg: #f4f6fa;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --line: #d8e0eb;
-  --line-strong: #b8c4d4;
-  --text: #182235;
-  --muted: #657286;
-  --accent: #2563eb;
-  --accent-soft: #e9f1ff;
-  --success: #168a6a;
-  --shadow: 0 16px 36px rgba(24, 34, 53, 0.13);
-  color: #182235;
+  --bg: #dfe6df;
+  --bg-deep: #ccd7cf;
+  --surface: #f3f4ee;
+  --surface-2: #e9ede5;
+  --surface-3: #dde5dc;
+  --line: #c4cec1;
+  --line-strong: #aab8a7;
+  --text: #22302e;
+  --muted: #617069;
+  --accent: #527a72;
+  --accent-2: #8a7968;
+  --accent-blue: #60758f;
+  --accent-soft: #d9e5dd;
+  --success: #4f8374;
+  --shadow: 0 16px 36px rgba(34, 48, 46, 0.15);
+  color: var(--text);
   background: var(--bg);
 }
 
@@ -23,7 +27,10 @@ body {
   margin: 0;
   min-width: 960px;
   min-height: 100vh;
-  background: linear-gradient(180deg, #f7f9fc 0%, var(--bg) 100%);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(138, 121, 104, 0.16), transparent 32%),
+    radial-gradient(circle at 88% 10%, rgba(96, 117, 143, 0.14), transparent 30%),
+    linear-gradient(180deg, #e7ebe3 0%, var(--bg) 100%);
 }
 
 button,
@@ -42,7 +49,7 @@ button {
   padding: 0 11px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
-  background: var(--surface);
+  background: #eef1eb;
   color: var(--text);
   font-size: 12px;
   white-space: nowrap;
@@ -82,8 +89,8 @@ svg {
   padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 24px rgba(24, 34, 53, 0.08);
+  background: rgba(243, 244, 238, 0.96);
+  box-shadow: 0 10px 24px rgba(34, 48, 46, 0.1);
 }
 
 .brand {
@@ -111,7 +118,7 @@ svg {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .status {
@@ -127,7 +134,7 @@ svg {
   height: 8px;
   border-radius: 50%;
   background: var(--success);
-  box-shadow: 0 0 0 4px rgba(22, 138, 106, 0.12);
+  box-shadow: 0 0 0 4px rgba(79, 131, 116, 0.14);
 }
 
 .dot.degraded {
@@ -141,22 +148,59 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  border-color: #c6d3e4;
-  background: #f8fbff;
+  border-color: var(--line-strong);
+  background: #eef1eb;
   font-weight: 700;
-  box-shadow: 0 6px 14px rgba(24, 34, 53, 0.07);
+  box-shadow: 0 6px 14px rgba(34, 48, 46, 0.08);
 }
 
 .action.primary,
 .export-primary {
-  border-color: #1d4ed8;
+  border-color: #456a63;
   background: var(--accent);
   color: #fff;
   font-weight: 700;
 }
 
 .action.primary {
-  box-shadow: 0 9px 20px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 9px 20px rgba(82, 122, 114, 0.28);
+}
+
+.workspace-actions {
+  min-height: 42px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(221, 229, 220, 0.74);
+}
+
+.workspace-action {
+  height: 34px;
+  padding: 0 13px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-color: transparent;
+  background: transparent;
+  color: #43514d;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.workspace-action.active,
+.workspace-action[aria-pressed='true'] {
+  border-color: #456a63;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 7px 16px rgba(82, 122, 114, 0.2);
+}
+
+.workspace-action:not(.active):hover {
+  border-color: var(--line-strong);
+  background: rgba(243, 244, 238, 0.86);
 }
 
 .file-input {
@@ -181,7 +225,7 @@ svg {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 10px 24px rgba(24, 34, 53, 0.07);
+  box-shadow: 0 10px 24px rgba(34, 48, 46, 0.08);
 }
 
 .rail,
@@ -213,11 +257,11 @@ svg {
   height: 66px;
   width: 100%;
   border-radius: 7px;
-  border: 1px solid #dfe6f0;
+  border: 1px solid var(--line);
   background: var(--surface-2);
   padding: 5px;
   overflow: hidden;
-  color: #526174;
+  color: #52625e;
   text-align: left;
   white-space: normal;
 }
@@ -225,12 +269,12 @@ svg {
 .thumb.active {
   border-color: var(--accent);
   background: var(--accent-soft);
-  color: #1d4ed8;
+  color: #365d56;
   font-weight: 700;
 }
 
 .drop-hint {
-  border: 1px dashed #9fb0c5;
+  border: 1px dashed #91a199;
   border-radius: 7px;
   min-height: 66px;
   display: flex;
@@ -238,7 +282,7 @@ svg {
   justify-content: center;
   text-align: center;
   color: var(--muted);
-  background: #fbfdff;
+  background: #eef2eb;
   line-height: 1.35;
 }
 
@@ -247,7 +291,7 @@ svg {
   grid-template-rows: 46px minmax(0, 1fr) 54px;
   gap: 9px;
   padding: 10px;
-  background: #fbfcfe;
+  background: #eef1eb;
 }
 
 .toolbar {
@@ -256,7 +300,7 @@ svg {
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
-  border-bottom: 1px solid #e4eaf2;
+  border-bottom: 1px solid var(--line);
   padding-bottom: 9px;
 }
 
@@ -286,15 +330,15 @@ svg {
 }
 
 .tool-active {
-  border-color: #9bb7f4;
+  border-color: #78988f;
   background: var(--accent-soft);
-  color: #1d4ed8;
+  color: #365d56;
   font-weight: 700;
 }
 
 .history {
   padding-left: 12px;
-  border-left: 1px solid #e4eaf2;
+  border-left: 1px solid var(--line);
 }
 
 .history-btn {
@@ -313,7 +357,7 @@ svg {
   align-items: center;
   gap: 7px;
   color: var(--muted);
-  background: var(--surface);
+  background: var(--surface-2);
   font-size: 11px;
 }
 
@@ -332,14 +376,14 @@ svg {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #cbd6e4;
+  border: 1px solid #bcc8bd;
   border-radius: 8px;
   background:
-    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
-    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
-    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
-  background-color: #f0f4f9;
+    linear-gradient(45deg, #d8e1dc 25%, transparent 25%),
+    linear-gradient(-45deg, #d8e1dc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #d8e1dc 75%),
+    linear-gradient(-45deg, transparent 75%, #d8e1dc 75%);
+  background-color: #eef2ec;
   background-size: 30px 30px;
   background-position:
     0 0,
@@ -354,18 +398,18 @@ svg {
   height: min(88%, 760px);
   border: 2px solid var(--accent);
   border-radius: 22px;
-  background: #fff;
+  background: #f4f4ee;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--muted);
   font-weight: 700;
   box-shadow: var(--shadow);
-  outline: 1px solid rgba(255, 255, 255, 0.86);
+  outline: 1px solid rgba(250, 250, 244, 0.78);
 }
 
 .canvas.has-image {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(243, 244, 238, 0.72);
   color: inherit;
   padding: 14px;
 }
@@ -380,7 +424,7 @@ svg {
   place-items: center;
   overflow: hidden;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(243, 244, 238, 0.56);
 }
 
 .image-fit-layer {
@@ -407,10 +451,10 @@ svg {
 
 .crop-frame {
   position: absolute;
-  border: 2px solid #f8fafc;
+  border: 2px solid #f6f5ee;
   box-shadow:
-    0 0 0 999px rgba(15, 23, 42, 0.2),
-    0 0 0 1px rgba(37, 99, 235, 0.8);
+    0 0 0 999px rgba(34, 48, 46, 0.22),
+    0 0 0 1px rgba(82, 122, 114, 0.86);
   pointer-events: none;
 }
 
@@ -425,10 +469,10 @@ svg {
   width: 18px;
   height: 18px;
   padding: 0;
-  border: 2px solid #fff;
+  border: 2px solid #f8f6ee;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 3px 8px rgba(24, 34, 53, 0.28);
+  box-shadow: 0 3px 8px rgba(34, 48, 46, 0.28);
   touch-action: none;
 }
 
@@ -445,10 +489,10 @@ svg {
   padding: 7px 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(243, 244, 238, 0.94);
   color: var(--muted);
   font-size: 12px;
-  box-shadow: 0 8px 18px rgba(24, 34, 53, 0.08);
+  box-shadow: 0 8px 18px rgba(34, 48, 46, 0.09);
 }
 
 .cutout-status {
@@ -457,12 +501,12 @@ svg {
   top: 12px;
   max-width: min(320px, calc(100% - 24px));
   padding: 7px 10px;
-  border: 1px solid rgba(37, 99, 235, 0.22);
+  border: 1px solid rgba(82, 122, 114, 0.28);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #1d4ed8;
+  background: rgba(243, 244, 238, 0.94);
+  color: #365d56;
   font-size: 12px;
-  box-shadow: 0 8px 18px rgba(24, 34, 53, 0.1);
+  box-shadow: 0 8px 18px rgba(34, 48, 46, 0.11);
 }
 
 .cutout-status-failed {
@@ -480,27 +524,27 @@ svg {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  border-top: 1px solid #e4eaf2;
+  border-top: 1px solid var(--line);
   padding-top: 9px;
   font-size: 12px;
 }
 
 .crop-active {
-  border-color: #9bb7f4;
+  border-color: #78988f;
   background: var(--accent-soft);
-  color: #1d4ed8;
+  color: #365d56;
   font-weight: 700;
 }
 
 .summary {
   margin-left: auto;
-  color: #334155;
+  color: #3d4c48;
   font-weight: 600;
 }
 
 .field {
   min-height: 44px;
-  border: 1px solid #e0e7f0;
+  border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface-2);
   padding: 7px;
@@ -510,7 +554,7 @@ svg {
 
 .field strong {
   display: block;
-  color: #26344a;
+  color: #2d3d3a;
   margin-bottom: 2px;
   font-size: 12px;
 }
@@ -534,9 +578,9 @@ svg {
 .stacked-control select {
   width: 100%;
   height: 30px;
-  border: 1px solid #cfd9e6;
+  border: 1px solid #b8c5b4;
   border-radius: 6px;
-  background: #fff;
+  background: #f7f7f1;
   color: var(--text);
   padding: 0 7px;
 }
@@ -558,7 +602,7 @@ svg {
 
 .range-row span {
   text-align: right;
-  color: #334155;
+  color: #3d4c48;
   font-weight: 700;
 }
 
@@ -570,7 +614,7 @@ svg {
   display: grid;
   gap: 7px;
   padding-top: 9px;
-  border-top: 1px solid #e4eaf2;
+  border-top: 1px solid var(--line);
 }
 
 .panel-status,
@@ -582,9 +626,9 @@ svg {
 }
 
 .panel-status {
-  border: 1px solid rgba(22, 138, 106, 0.22);
-  background: rgba(22, 138, 106, 0.08);
-  color: #0f6b54;
+  border: 1px solid rgba(79, 131, 116, 0.28);
+  background: rgba(79, 131, 116, 0.1);
+  color: #365d56;
 }
 
 .panel-error {
@@ -599,7 +643,7 @@ svg {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(15, 23, 42, 0.28);
+  background: rgba(34, 48, 46, 0.34);
   z-index: 10;
 }
 
@@ -643,7 +687,7 @@ svg {
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
-  background: var(--surface);
+  background: #eef1eb;
   font-size: 12px;
   cursor: pointer;
 }
@@ -660,7 +704,7 @@ svg {
   display: flex;
   justify-content: space-between;
   padding: 8px 0;
-  border-top: 1px solid #e4eaf2;
+  border-top: 1px solid var(--line);
   font-size: 13px;
 }
 
@@ -688,7 +732,7 @@ svg {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 10px 24px rgba(24, 34, 53, 0.07);
+  box-shadow: 0 10px 24px rgba(34, 48, 46, 0.08);
   display: grid;
   grid-template-rows: 58px minmax(0, 1fr) auto;
   overflow: hidden;
@@ -696,7 +740,7 @@ svg {
 
 .rename-header {
   padding: 10px 14px;
-  border-bottom: 1px solid #e4eaf2;
+  border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -725,7 +769,11 @@ svg {
 }
 
 .rename-back {
-  padding: 0 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: #3d4c48;
 }
 
 .rename-body {
@@ -739,11 +787,11 @@ svg {
 .rename-detail {
   min-height: 0;
   padding: 10px;
-  background: #fbfcfe;
+  background: #eef1eb;
 }
 
 .rename-list {
-  border-right: 1px solid #e4eaf2;
+  border-right: 1px solid var(--line);
   overflow: auto;
   display: grid;
   align-content: start;
@@ -774,14 +822,14 @@ svg {
   width: 54px;
   height: 54px;
   object-fit: contain;
-  border: 1px solid #e4eaf2;
+  border: 1px solid var(--line);
   border-radius: 6px;
   background:
-    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
-    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
-    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
-  background-color: #f8fafc;
+    linear-gradient(45deg, #d8e1dc 25%, transparent 25%),
+    linear-gradient(-45deg, #d8e1dc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #d8e1dc 75%),
+    linear-gradient(-45deg, transparent 75%, #d8e1dc 75%);
+  background-color: #eef2ec;
   background-size: 16px 16px;
   background-position:
     0 0,
@@ -819,11 +867,11 @@ svg {
   place-items: center;
   gap: 10px;
   background:
-    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
-    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
-    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
-  background-color: #f0f4f9;
+    linear-gradient(45deg, #d8e1dc 25%, transparent 25%),
+    linear-gradient(-45deg, #d8e1dc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #d8e1dc 75%),
+    linear-gradient(-45deg, transparent 75%, #d8e1dc 75%);
+  background-color: #eef2ec;
   background-size: 28px 28px;
   background-position:
     0 0,
@@ -837,7 +885,7 @@ svg {
   max-height: 100%;
   object-fit: contain;
   border-radius: 8px;
-  filter: drop-shadow(0 18px 22px rgba(24, 34, 53, 0.16));
+  filter: drop-shadow(0 18px 22px rgba(34, 48, 46, 0.16));
 }
 
 .rename-preview span {
@@ -849,7 +897,7 @@ svg {
 }
 
 .rename-detail {
-  border-left: 1px solid #e4eaf2;
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -864,16 +912,16 @@ svg {
 .rename-name-field input {
   width: 100%;
   height: 34px;
-  border: 1px solid #cfd9e6;
+  border: 1px solid #b8c5b4;
   border-radius: 6px;
   padding: 0 8px;
   color: var(--text);
-  background: #fff;
+  background: #f7f7f1;
 }
 
 .rename-empty {
   min-height: 88px;
-  border: 1px dashed #9fb0c5;
+  border: 1px dashed #91a199;
   border-radius: 8px;
   display: grid;
   place-items: center;
@@ -884,8 +932,8 @@ svg {
 .rename-table-wrap {
   max-height: 210px;
   overflow: auto;
-  border-top: 1px solid #e4eaf2;
-  background: #fff;
+  border-top: 1px solid var(--line);
+  background: #f3f4ee;
 }
 
 .rename-table {
@@ -896,7 +944,7 @@ svg {
 
 .rename-table th,
 .rename-table td {
-  border-bottom: 1px solid #e4eaf2;
+  border-bottom: 1px solid var(--line);
   padding: 7px 10px;
   text-align: left;
   white-space: nowrap;
@@ -905,7 +953,7 @@ svg {
 .rename-table th {
   position: sticky;
   top: 0;
-  background: #f8fafc;
+  background: #e7ece5;
   color: var(--muted);
   font-weight: 700;
 }

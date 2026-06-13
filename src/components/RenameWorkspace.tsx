@@ -87,7 +87,7 @@ export function RenameWorkspace({
             {showTable ? '隐藏当前表' : '查看当前表'}
           </button>
           <button className="ghost-button rename-back" onClick={onBack} type="button">
-            返回图片处理
+            返回抠图/裁剪
           </button>
         </div>
       </header>

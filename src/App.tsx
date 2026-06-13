@@ -463,10 +463,16 @@ export function App({
   return (
     <div className="app-shell">
       <TopBar
+        isTemplateOpen={isTemplateOpen}
         onImportFiles={importFiles}
+        onOpenEdit={() => setWorkspaceMode('edit')}
         onOpenRename={() => setWorkspaceMode('rename')}
-        onOpenTemplate={() => setIsTemplateOpen(true)}
+        onOpenTemplate={() => {
+          setWorkspaceMode('edit');
+          setIsTemplateOpen(true);
+        }}
         samMode={samMode}
+        workspaceMode={workspaceMode}
       />
       {workspaceMode === 'rename' ? (
         <RenameWorkspace

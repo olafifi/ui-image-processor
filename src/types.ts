@@ -6,6 +6,21 @@ export type BackgroundType = 'transparent' | 'solid';
 
 export type AppMode = 'full' | 'degraded';
 
+export type WorkspaceMode = 'edit' | 'rename';
+
+export type CutoutStatus = 'idle' | 'processing' | 'ready' | 'failed';
+
+export type CutoutKind = 'existing-alpha' | 'fake-checkerboard' | 'light-background' | 'unknown';
+
+export type EditorTool = 'selectAdd' | 'selectSubtract' | 'eraser' | 'restore' | 'crop';
+
+export interface CutoutEditRequest {
+  mode: 'erase' | 'restore' | 'point-erase' | 'point-restore';
+  x: number;
+  y: number;
+  radius: number;
+}
+
 export interface CropRect {
   x: number;
   y: number;
@@ -30,6 +45,12 @@ export interface ImageQueueItem {
   targetName: string;
   mimeType: string;
   previewUrl: string;
+  processedPreviewUrl?: string;
+  cutoutStatus: CutoutStatus;
+  cutoutKind?: CutoutKind;
+  cutoutMessage?: string;
+  editHistory: string[];
+  editHistoryIndex: number;
   naturalWidth: number;
   naturalHeight: number;
   crop: CropRect;

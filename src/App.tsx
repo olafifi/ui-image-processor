@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorCanvas } from './components/EditorCanvas';
 import { ExportPanel } from './components/ExportPanel';
 import { ImageQueue } from './components/ImageQueue';
-import { RenameDialog } from './components/RenameDialog';
+import { RenameWorkspace } from './components/RenameWorkspace';
 import { TemplateDialog } from './components/TemplateDialog';
 import { TopBar } from './components/TopBar';
+import { autoCutoutItem, type AutoCutoutResult } from './lib/backgroundRemoval';
 import { exportCanvasImage, normalizeExportSettings } from './lib/canvasExport';
+import { applyCutoutEditToImages } from './lib/cutoutEdit';
 import { fitCropToRatio, fullCrop } from './lib/crop';
 import { downloadBlob as browserDownloadBlob } from './lib/download';
 import { createImageQueueItem, filterSupportedImageFiles } from './lib/fileImport';
@@ -13,7 +15,18 @@ import { loadImageSource } from './lib/imageLoader';
 import { detectBrowserCapabilities, detectSamMode } from './lib/samAdapter';
 import { createLocalStorageTemplateStore, type TemplateDraft } from './lib/templateStore';
 import { createExportZip, resolveExportFilename, type ZipFileSource } from './lib/zipExport';
-import type { AppMode, CropRatio, CropRect, ExportSettings, ImageQueueItem, Template } from './types';
+import type {
+  AppMode,
+  CropRatio,
+  CropRect,
+  CutoutEditRequest,
+  EditorTool,
+  ExportSettings,
+  ImageQueueItem,
+  RenameMapping,
+  Template,
+  WorkspaceMode
+} from './types';
 
 const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   format: 'png',
@@ -24,7 +37,10 @@ const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   cornerRadius: 0
 };
 
+type AutoCutoutRunner = (item: ImageQueueItem) => Promise<AutoCutoutResult>;
+
 interface AppProps {
+  autoCutout?: AutoCutoutRunner;
   createZip?: typeof createExportZip;
   downloadBlob?: (blob: Blob, filename: string) => void;
   exportImage?: typeof exportCanvasImage;
@@ -32,6 +48,7 @@ interface AppProps {
 }
 
 export function App({
+  autoCutout = autoCutoutItem,
   createZip = createExportZip,
   downloadBlob = browserDownloadBlob,
   exportImage = exportCanvasImage,
@@ -39,19 +56,29 @@ export function App({
 }: AppProps = {}) {
   const [items, setItems] = useState<ImageQueueItem[]>([]);
   const [activeId, setActiveId] = useState<string>();
-  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('edit');
+  const [activeTool, setActiveTool] = useState<EditorTool>('crop');
+  const [brushSize, setBrushSize] = useState(36);
   const [isTemplateOpen, setIsTemplateOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string>();
   const [exportStatus, setExportStatus] = useState<string>();
   const [templates, setTemplates] = useState<Template[]>([]);
   const objectUrls = useRef<string[]>([]);
+  const latestItems = useRef<ImageQueueItem[]>([]);
+  const editQueue = useRef(Promise.resolve());
   const templateStore = useMemo(() => createLocalStorageTemplateStore(), []);
   const samMode = useMemo<AppMode>(() => detectSamMode(detectBrowserCapabilities()), []);
   const activeItem = useMemo(
     () => items.find((item) => item.id === activeId) ?? items[0],
     [activeId, items]
   );
+  const canUndo = Boolean(activeItem && activeItem.editHistoryIndex > 0);
+  const canRedo = Boolean(activeItem && activeItem.editHistoryIndex < activeItem.editHistory.length - 1);
+
+  useEffect(() => {
+    latestItems.current = items;
+  }, [items]);
 
   const importFiles = useCallback((files: Iterable<File>) => {
     const nextItems = filterSupportedImageFiles(files).map((file) => {
@@ -75,6 +102,53 @@ export function App({
   useEffect(() => {
     void templateStore.list().then(setTemplates);
   }, [templateStore]);
+
+  useEffect(() => {
+    const idleItems = items.filter((item) => item.cutoutStatus === 'idle');
+    for (const item of idleItems) {
+      setItems((current) =>
+        current.map((candidate) =>
+          candidate.id === item.id
+            ? { ...candidate, cutoutMessage: '正在自动抠图...', cutoutStatus: 'processing' }
+            : candidate
+        )
+      );
+
+      void autoCutout(item)
+        .then((result) => {
+          setItems((current) =>
+            current.map((candidate) => {
+              if (candidate.id !== item.id) {
+                return candidate;
+              }
+
+              const history = pushHistory(candidate, result.processedPreviewUrl);
+              return {
+                ...candidate,
+                ...history,
+                cutoutKind: result.kind,
+                cutoutMessage: result.message,
+                cutoutStatus: 'ready',
+                processedPreviewUrl: result.processedPreviewUrl
+              };
+            })
+          );
+        })
+        .catch((error) => {
+          setItems((current) =>
+            current.map((candidate) =>
+              candidate.id === item.id
+                ? {
+                    ...candidate,
+                    cutoutMessage: getErrorMessage(error),
+                    cutoutStatus: 'failed'
+                  }
+                : candidate
+            )
+          );
+        });
+    }
+  }, [autoCutout, items]);
 
   const saveTemplate = useCallback(
     (template: TemplateDraft) => {
@@ -200,9 +274,71 @@ export function App({
     [updateActiveItem]
   );
 
+  const applyRenameMappings = useCallback((mappings: RenameMapping[]) => {
+    setItems((current) =>
+      current.map((item) => {
+        const mapping = mappings.find((candidate) => candidate.oldFilename === item.originalName);
+        return mapping ? { ...item, targetName: mapping.newFilename } : item;
+      })
+    );
+  }, []);
+
+  const updateTargetName = useCallback((id: string, targetName: string) => {
+    setItems((current) => current.map((item) => (item.id === id ? { ...item, targetName } : item)));
+  }, []);
+
+  const applyCutoutEdit = useCallback(
+    (edit: CutoutEditRequest) => {
+      const itemId = activeItem?.id;
+      if (!itemId) {
+        return;
+      }
+
+      editQueue.current = editQueue.current
+        .then(async () => {
+          const item = latestItems.current.find((candidate) => candidate.id === itemId);
+          if (!item) {
+            return;
+          }
+
+          const originalImage = await loadImage(item.previewUrl);
+          const processedImage = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
+          const processedPreviewUrl = await applyCutoutEditToImages(originalImage, processedImage, edit);
+
+          setItems((current) =>
+            current.map((candidate) => {
+              if (candidate.id !== itemId) {
+                return candidate;
+              }
+
+              return {
+                ...candidate,
+                ...pushHistory(candidate, processedPreviewUrl),
+                cutoutMessage: '已手动修补抠图',
+                cutoutStatus: 'ready',
+                processedPreviewUrl
+              };
+            })
+          );
+        })
+        .catch((error) => {
+          setExportError(getErrorMessage(error));
+        });
+    },
+    [activeItem?.id, loadImage]
+  );
+
+  const undoEdit = useCallback(() => {
+    updateActiveItem((item) => moveHistory(item, -1));
+  }, [updateActiveItem]);
+
+  const redoEdit = useCallback(() => {
+    updateActiveItem((item) => moveHistory(item, 1));
+  }, [updateActiveItem]);
+
   const exportSingleItem = useCallback(
     async (item: ImageQueueItem) => {
-      const image = await loadImage(item.previewUrl);
+      const image = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
       const settings = normalizeExportSettings(item.exportSettings);
       const crop = resolveCropForImage(item, image, item.crop.ratio);
       const blob = await exportImage(image, crop, settings);
@@ -247,7 +383,7 @@ export function App({
     try {
       const files: ZipFileSource[] = [];
       for (const item of items) {
-        const image = await loadImage(item.previewUrl);
+        const image = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
         files.push({
           blob: await exportImage(image, resolveCropForImage(item, image, ratio), settings),
           originalName: item.originalName,
@@ -269,53 +405,59 @@ export function App({
     <div className="app-shell">
       <TopBar
         onImportFiles={importFiles}
-        onOpenRename={() => setIsRenameOpen(true)}
+        onOpenRename={() => setWorkspaceMode('rename')}
         onOpenTemplate={() => setIsTemplateOpen(true)}
         samMode={samMode}
       />
-      <div className="workspace">
-        <ImageQueue
+      {workspaceMode === 'rename' ? (
+        <RenameWorkspace
           activeId={activeItem?.id}
           items={items}
-          onImportFiles={importFiles}
+          onApplyMappings={applyRenameMappings}
+          onBack={() => setWorkspaceMode('edit')}
           onSelectItem={setActiveId}
+          onUpdateTargetName={updateTargetName}
         />
-        <EditorCanvas
-          activeItem={activeItem}
-          onChangeCrop={changeCrop}
-          onChangeCropRatio={changeCropRatio}
-          onImageLoaded={updateImageDimensions}
-          onImportFiles={importFiles}
-          onToggleRounded={toggleRounded}
-          onUseTransparentBackground={useTransparentBackground}
-          samMode={samMode}
-        />
-        <ExportPanel
-          activeItem={activeItem}
-          error={exportError}
-          isBusy={isExporting}
-          itemCount={items.length}
-          onApplyToAll={applyActiveSettingsToAll}
-          onExportCurrent={exportCurrent}
-          onExportZip={exportZip}
-          onOpenTemplate={() => setIsTemplateOpen(true)}
-          onUpdateSettings={updateActiveSettings}
-          status={exportStatus}
-        />
-      </div>
-      {isRenameOpen && (
-        <RenameDialog
-          oldFilenames={items.map((item) => item.originalName)}
-          onApplyMappings={(mappings) => {
-            setItems((current) =>
-              current.map((item) => {
-                const mapping = mappings.find((candidate) => candidate.oldFilename === item.originalName);
-                return mapping ? { ...item, targetName: mapping.newFilename } : item;
-              })
-            );
-          }}
-          onClose={() => setIsRenameOpen(false)}
-        />
+      ) : (
+        <div className="workspace">
+          <ImageQueue
+            activeId={activeItem?.id}
+            items={items}
+            onImportFiles={importFiles}
+            onSelectItem={setActiveId}
+          />
+          <EditorCanvas
+            activeItem={activeItem}
+            activeTool={activeTool}
+            brushSize={brushSize}
+            canRedo={canRedo}
+            canUndo={canUndo}
+            onChangeBrushSize={setBrushSize}
+            onChangeCrop={changeCrop}
+            onChangeCropRatio={changeCropRatio}
+            onChangeTool={setActiveTool}
+            onCutoutEdit={applyCutoutEdit}
+            onImageLoaded={updateImageDimensions}
+            onImportFiles={importFiles}
+            onRedo={redoEdit}
+            onToggleRounded={toggleRounded}
+            onUndo={undoEdit}
+            onUseTransparentBackground={useTransparentBackground}
+            samMode={samMode}
+          />
+          <ExportPanel
+            activeItem={activeItem}
+            error={exportError}
+            isBusy={isExporting}
+            itemCount={items.length}
+            onApplyToAll={applyActiveSettingsToAll}
+            onExportCurrent={exportCurrent}
+            onExportZip={exportZip}
+            onOpenTemplate={() => setIsTemplateOpen(true)}
+            onUpdateSettings={updateActiveSettings}
+            status={exportStatus}
+          />
+        </div>
       )}
       {isTemplateOpen && (
         <TemplateDialog
@@ -336,6 +478,31 @@ function resolveCropForImage(item: ImageQueueItem, image: HTMLImageElement, rati
   return ratio === 'free' ? item.crop : fitCropToRatio(width, height, ratio);
 }
 
+function pushHistory(item: ImageQueueItem, processedPreviewUrl: string) {
+  const baseHistory = item.editHistory.length > 0 ? item.editHistory : [item.previewUrl];
+  const nextHistory = [...baseHistory.slice(0, item.editHistoryIndex + 1), processedPreviewUrl];
+  const trimmedHistory = nextHistory.slice(-20);
+  return {
+    editHistory: trimmedHistory,
+    editHistoryIndex: trimmedHistory.length - 1
+  };
+}
+
+function moveHistory(item: ImageQueueItem, delta: -1 | 1): ImageQueueItem {
+  const nextIndex = clamp(item.editHistoryIndex + delta, 0, item.editHistory.length - 1);
+  const nextPreviewUrl = item.editHistory[nextIndex];
+  return {
+    ...item,
+    cutoutMessage: delta < 0 ? '已撤销上一步' : '已重做上一步',
+    editHistoryIndex: nextIndex,
+    processedPreviewUrl: nextPreviewUrl === item.previewUrl ? undefined : nextPreviewUrl
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '导出失败，请重试';
+  return error instanceof Error ? error.message : '处理失败，请重试';
 }

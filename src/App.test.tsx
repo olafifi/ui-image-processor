@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
@@ -54,15 +54,17 @@ describe('App layout', () => {
     expect(screen.queryByText('note.txt')).not.toBeInTheDocument();
   });
 
-  it('opens the csv rename workflow from the top bar', async () => {
+  it('opens the rename workspace from the top bar', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: /批量重命名/ }));
 
-    expect(screen.getByRole('dialog', { name: '批量重命名' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '批量重命名工作区' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下载命名 CSV' })).toBeInTheDocument();
     expect(screen.getByLabelText('上传命名 CSV')).toBeInTheDocument();
+    expect(screen.getAllByText('旧文件名').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('新文件名').length).toBeGreaterThan(0);
   });
 
   it('opens the template workflow from the top bar', async () => {
@@ -100,6 +102,37 @@ describe('App layout', () => {
       expect.objectContaining({ format: 'png' })
     );
     expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'card.png');
+  });
+
+  it('exports the processed preview when automatic cutout is ready', async () => {
+    const user = userEvent.setup();
+    const exportImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
+    const downloadBlob = vi.fn();
+    const mockSource = { naturalWidth: 800, naturalHeight: 600 } as HTMLImageElement;
+    const loadImage = vi.fn(async () => mockSource);
+    const autoCutout = vi.fn(async () => ({
+      kind: 'fake-checkerboard' as const,
+      message: '已去除伪透明背景',
+      processedPreviewUrl: 'data:image/png;base64,processed'
+    }));
+
+    render(
+      <App
+        autoCutout={autoCutout}
+        downloadBlob={downloadBlob}
+        exportImage={exportImage}
+        loadImage={loadImage}
+      />
+    );
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image'], 'fake-transparent.png', { type: 'image/png' })
+    ]);
+    await waitFor(() => expect(autoCutout).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: /导出当前 PNG/ }));
+
+    expect(loadImage).toHaveBeenCalledWith('data:image/png;base64,processed');
+    expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'fake-transparent.png');
   });
 
   it('exports all queued images into a zip', async () => {

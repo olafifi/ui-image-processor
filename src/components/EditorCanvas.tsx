@@ -7,7 +7,7 @@ import {
   resizeFreeCropByPixels,
   type Rect
 } from '../lib/crop';
-import type { AppMode, CropRatio, CropRect, ImageQueueItem } from '../types';
+import type { AppMode, CropRatio, CropRect, CutoutEditRequest, EditorTool, ImageQueueItem } from '../types';
 
 const cropRatios: Array<{ label: string; value: CropRatio }> = [
   { label: '1:1', value: '1:1' },
@@ -20,31 +20,45 @@ const cropRatios: Array<{ label: string; value: CropRatio }> = [
 
 interface EditorCanvasProps {
   activeItem?: ImageQueueItem;
+  activeTool: EditorTool;
+  brushSize: number;
+  canRedo: boolean;
+  canUndo: boolean;
+  onChangeBrushSize: (size: number) => void;
   onChangeCrop: (crop: CropRect) => void;
   onChangeCropRatio: (ratio: CropRatio) => void;
+  onChangeTool: (tool: EditorTool) => void;
+  onCutoutEdit: (edit: CutoutEditRequest) => void;
   onImageLoaded: (id: string, width: number, height: number) => void;
   onImportFiles: (files: Iterable<File>) => void;
+  onRedo: () => void;
   onToggleRounded: () => void;
+  onUndo: () => void;
   onUseTransparentBackground: () => void;
   samMode: AppMode;
 }
 
 export function EditorCanvas({
   activeItem,
+  activeTool,
+  brushSize,
+  canRedo,
+  canUndo,
+  onChangeBrushSize,
   onChangeCrop,
   onChangeCropRatio,
+  onChangeTool,
+  onCutoutEdit,
   onImageLoaded,
   onImportFiles,
+  onRedo,
   onToggleRounded,
+  onUndo,
   onUseTransparentBackground,
   samMode
 }: EditorCanvasProps) {
-  function handleDrop(event: DragEvent<HTMLElement>) {
-    event.preventDefault();
-    onImportFiles(event.dataTransfer.files);
-  }
-
   const previewRef = useRef<HTMLDivElement>(null);
+  const editDragRef = useRef(false);
   const interactionRef = useRef<null | {
     crop: CropRect;
     startX: number;
@@ -52,6 +66,11 @@ export function EditorCanvas({
     type: 'move' | 'resize';
   }>(null);
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
+
+  function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    onImportFiles(event.dataTransfer.files);
+  }
 
   useEffect(() => {
     const preview = previewRef.current;
@@ -74,6 +93,7 @@ export function EditorCanvas({
     return () => observer.disconnect();
   }, [activeItem?.id]);
 
+  const displayUrl = activeItem?.processedPreviewUrl ?? activeItem?.previewUrl;
   const exportFormat =
     activeItem?.exportSettings.backgroundType === 'transparent'
       ? 'PNG'
@@ -95,7 +115,8 @@ export function EditorCanvas({
       activeItem.naturalHeight
     );
   }, [activeItem, previewSize.height, previewSize.width]);
-  const canEditFreeCrop = crop?.ratio === 'free';
+  const canEditFreeCrop = activeTool === 'crop' && crop?.ratio === 'free';
+  const canEditCutout = Boolean(activeItem && activeTool !== 'crop');
 
   function beginCropMove(event: PointerEvent<HTMLDivElement>) {
     if (!crop || !canEditFreeCrop) {
@@ -149,9 +170,73 @@ export function EditorCanvas({
     interactionRef.current = null;
   }
 
+  function beginImageEdit(event: PointerEvent<HTMLDivElement>) {
+    if (!canEditCutout) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (activeTool === 'eraser' || activeTool === 'restore') {
+      editDragRef.current = true;
+      commitPointerEdit(event);
+      return;
+    }
+
+    if (activeTool === 'selectAdd' || activeTool === 'selectSubtract') {
+      commitPointerEdit(event);
+    }
+  }
+
+  function moveImageEdit(event: PointerEvent<HTMLDivElement>) {
+    if (!editDragRef.current || (activeTool !== 'eraser' && activeTool !== 'restore')) {
+      return;
+    }
+
+    event.preventDefault();
+    commitPointerEdit(event);
+  }
+
+  function endImageEdit() {
+    editDragRef.current = false;
+  }
+
+  function commitPointerEdit(event: PointerEvent<HTMLDivElement>) {
+    const point = getImagePoint(event, activeItem);
+    if (!point) {
+      return;
+    }
+
+    const modeByTool: Record<Exclude<EditorTool, 'crop'>, CutoutEditRequest['mode']> = {
+      eraser: 'erase',
+      restore: 'restore',
+      selectAdd: 'point-restore',
+      selectSubtract: 'point-erase'
+    };
+
+    onCutoutEdit({
+      mode: modeByTool[activeTool as Exclude<EditorTool, 'crop'>],
+      radius: brushSize,
+      x: point.x,
+      y: point.y
+    });
+  }
+
   return (
     <main className="center">
-      <ToolBar samMode={samMode} />
+      <ToolBar
+        activeTool={activeTool}
+        brushSize={brushSize}
+        canEdit={Boolean(activeItem)}
+        canRedo={canRedo}
+        canUndo={canUndo}
+        onChangeBrushSize={onChangeBrushSize}
+        onChangeTool={onChangeTool}
+        onRedo={onRedo}
+        onUndo={onUndo}
+        samMode={samMode}
+      />
 
       <section
         className="stage"
@@ -161,10 +246,14 @@ export function EditorCanvas({
       >
         <div className="drop-overlay">可直接拖入单张或多张图片</div>
         <div className={activeItem ? 'canvas has-image' : 'canvas'}>
-          {activeItem ? (
+          {activeItem && displayUrl ? (
             <div className="canvas-preview" ref={previewRef}>
               <div
-                className="image-fit-layer"
+                className={canEditCutout ? 'image-fit-layer cutout-interactive' : 'image-fit-layer'}
+                onPointerCancel={endImageEdit}
+                onPointerDown={beginImageEdit}
+                onPointerMove={moveImageEdit}
+                onPointerUp={endImageEdit}
                 style={{
                   height: `${imageRect.height}px`,
                   left: `${imageRect.x}px`,
@@ -182,7 +271,7 @@ export function EditorCanvas({
                       event.currentTarget.naturalHeight
                     )
                   }
-                  src={activeItem.previewUrl}
+                  src={displayUrl}
                 />
                 {crop && (
                   <div
@@ -213,6 +302,11 @@ export function EditorCanvas({
                   </div>
                 )}
               </div>
+              {activeItem.cutoutStatus !== 'idle' && (
+                <div className={`cutout-status cutout-status-${activeItem.cutoutStatus}`}>
+                  {activeItem.cutoutStatus === 'processing' ? '正在自动抠图...' : activeItem.cutoutMessage}
+                </div>
+              )}
             </div>
           ) : (
             <span>拖入或导入图片后开始处理</span>
@@ -246,4 +340,28 @@ export function EditorCanvas({
       </div>
     </main>
   );
+}
+
+function getImagePoint(event: PointerEvent<HTMLDivElement>, activeItem?: ImageQueueItem) {
+  if (!activeItem) {
+    return undefined;
+  }
+
+  const rect = event.currentTarget.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return undefined;
+  }
+
+  const xRatio = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+  const yRatio = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+  const width = activeItem.naturalWidth || 1;
+  const height = activeItem.naturalHeight || 1;
+  return {
+    x: xRatio * width,
+    y: yRatio * height
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }

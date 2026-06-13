@@ -23,6 +23,9 @@ export function createImageQueueItem(file: File, previewUrl: string, id = crypto
     targetName: '',
     mimeType: file.type,
     previewUrl,
+    cutoutStatus: 'idle',
+    editHistory: [previewUrl],
+    editHistoryIndex: 0,
     naturalWidth: 0,
     naturalHeight: 0,
     crop: {

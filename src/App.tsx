@@ -1,8 +1,17 @@
+import { EditorCanvas } from './components/EditorCanvas';
+import { ExportPanel } from './components/ExportPanel';
+import { ImageQueue } from './components/ImageQueue';
+import { TopBar } from './components/TopBar';
+
 export function App() {
   return (
-    <main className="app-shell">
-      <h1>UI 图片处理器</h1>
-      <p>本地处理 · PNG 工作流</p>
-    </main>
+    <div className="app-shell">
+      <TopBar />
+      <div className="workspace">
+        <ImageQueue />
+        <EditorCanvas />
+        <ExportPanel />
+      </div>
+    </div>
   );
 }

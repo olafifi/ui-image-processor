@@ -1,14 +1,16 @@
 import type { DragEvent } from 'react';
 import { Icon } from './Icon';
 import { ToolBar } from './ToolBar';
+import type { AppMode } from '../types';
 
 const cropRatios = ['1:1', '4:3', '3:4', '16:9', '9:16', '自由'];
 
 interface EditorCanvasProps {
   onImportFiles: (files: Iterable<File>) => void;
+  samMode: AppMode;
 }
 
-export function EditorCanvas({ onImportFiles }: EditorCanvasProps) {
+export function EditorCanvas({ onImportFiles, samMode }: EditorCanvasProps) {
   function handleDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     onImportFiles(event.dataTransfer.files);
@@ -16,7 +18,7 @@ export function EditorCanvas({ onImportFiles }: EditorCanvasProps) {
 
   return (
     <main className="center">
-      <ToolBar />
+      <ToolBar samMode={samMode} />
 
       <section
         className="stage"

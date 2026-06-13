@@ -6,8 +6,9 @@ import { RenameDialog } from './components/RenameDialog';
 import { TemplateDialog } from './components/TemplateDialog';
 import { TopBar } from './components/TopBar';
 import { createImageQueueItem, filterSupportedImageFiles } from './lib/fileImport';
+import { detectBrowserCapabilities, detectSamMode } from './lib/samAdapter';
 import { createLocalStorageTemplateStore, type TemplateDraft } from './lib/templateStore';
-import type { ImageQueueItem, Template } from './types';
+import type { AppMode, ImageQueueItem, Template } from './types';
 
 export function App() {
   const [items, setItems] = useState<ImageQueueItem[]>([]);
@@ -16,6 +17,7 @@ export function App() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const objectUrls = useRef<string[]>([]);
   const templateStore = useMemo(() => createLocalStorageTemplateStore(), []);
+  const samMode = useMemo<AppMode>(() => detectSamMode(detectBrowserCapabilities()), []);
 
   const importFiles = useCallback((files: Iterable<File>) => {
     const nextItems = filterSupportedImageFiles(files).map((file) => {
@@ -54,10 +56,11 @@ export function App() {
         onImportFiles={importFiles}
         onOpenRename={() => setIsRenameOpen(true)}
         onOpenTemplate={() => setIsTemplateOpen(true)}
+        samMode={samMode}
       />
       <div className="workspace">
         <ImageQueue items={items} onImportFiles={importFiles} />
-        <EditorCanvas onImportFiles={importFiles} />
+        <EditorCanvas onImportFiles={importFiles} samMode={samMode} />
         <ExportPanel onOpenTemplate={() => setIsTemplateOpen(true)} />
       </div>
       {isRenameOpen && (

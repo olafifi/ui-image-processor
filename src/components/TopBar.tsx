@@ -1,13 +1,15 @@
 import { useRef } from 'react';
 import { Icon } from './Icon';
+import type { AppMode } from '../types';
 
 interface TopBarProps {
   onImportFiles: (files: Iterable<File>) => void;
   onOpenRename: () => void;
   onOpenTemplate: () => void;
+  samMode: AppMode;
 }
 
-export function TopBar({ onImportFiles, onOpenRename, onOpenTemplate }: TopBarProps) {
+export function TopBar({ onImportFiles, onOpenRename, onOpenTemplate, samMode }: TopBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -47,8 +49,8 @@ export function TopBar({ onImportFiles, onOpenRename, onOpenTemplate }: TopBarPr
       </nav>
 
       <div className="status">
-        <span className="dot" />
-        WebGPU 完整模式
+        <span className={samMode === 'full' ? 'dot' : 'dot degraded'} />
+        {samMode === 'full' ? 'WebGPU 完整模式' : '降级模式'}
       </div>
     </header>
   );

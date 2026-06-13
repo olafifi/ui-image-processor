@@ -1,15 +1,22 @@
 import { Icon } from './Icon';
+import type { AppMode } from '../types';
 
-export function ToolBar() {
+interface ToolBarProps {
+  samMode: AppMode;
+}
+
+export function ToolBar({ samMode }: ToolBarProps) {
+  const samDisabled = samMode === 'degraded';
+
   return (
     <div className="toolbar">
       <div className="tool-group">
         <span className="group-label">选择与修补</span>
-        <button className="tool-btn tool-active" title="SAM 点选" type="button">
+        <button className="tool-btn tool-active" disabled={samDisabled} title="SAM 点选" type="button">
           <Icon name="selectAdd" />
           SAM 点选
         </button>
-        <button className="tool-btn" title="反点选" type="button">
+        <button className="tool-btn" disabled={samDisabled} title="反点选" type="button">
           <Icon name="selectSubtract" />
           反点选
         </button>

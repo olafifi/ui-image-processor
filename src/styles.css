@@ -44,6 +44,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 svg {
   width: 18px;
   height: 18px;
@@ -118,6 +123,11 @@ svg {
   border-radius: 50%;
   background: var(--success);
   box-shadow: 0 0 0 4px rgba(22, 138, 106, 0.12);
+}
+
+.dot.degraded {
+  background: #d97706;
+  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.14);
 }
 
 .action {

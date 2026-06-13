@@ -74,4 +74,10 @@ describe('App layout', () => {
     expect(screen.getByRole('dialog', { name: '模板' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '保存当前设置为模板' })).toBeInTheDocument();
   });
+
+  it('shows degraded mode when webgpu is unavailable', () => {
+    render(<App />);
+
+    expect(screen.getByText('降级模式')).toBeInTheDocument();
+  });
 });

@@ -4,6 +4,8 @@ export type ExportFormat = 'png' | 'jpeg';
 
 export type BackgroundType = 'transparent' | 'solid';
 
+export type ExportSizeMode = 'crop' | 'custom';
+
 export type AppMode = 'full' | 'degraded';
 
 export type WorkspaceMode = 'edit' | 'rename';
@@ -38,6 +40,7 @@ export interface CropRect {
 
 export interface ExportSettings {
   format: ExportFormat;
+  sizeMode: ExportSizeMode;
   width: number;
   height: number;
   backgroundType: BackgroundType;

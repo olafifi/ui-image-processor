@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   fitCropToRatio,
+  getCropPixelSize,
   getContainedImageRect,
   getCropFrameRect,
   moveCropByPixels,
+  resizeCropByPixels,
   resizeFreeCropByPixels
 } from './crop';
 
@@ -91,6 +93,47 @@ describe('crop helpers', () => {
       y: 0.1,
       width: 0.5,
       height: 0.5
+    });
+  });
+
+  it('resizes fixed ratio crops from a corner without changing the ratio mode', () => {
+    const resized = resizeCropByPixels(
+      { ratio: '16:9', x: 0.1, y: 0.1, width: 0.6, height: 0.6 },
+      'south-east',
+      160,
+      0,
+      { x: 0, y: 0, width: 1600, height: 900 }
+    );
+
+    expect(resized.ratio).toBe('16:9');
+    expect(resized.width).toBe(0.7);
+    expect(resized.height).toBeCloseTo(0.7, 6);
+  });
+
+  it('resizes fixed ratio crops from the north west corner with the opposite corner anchored', () => {
+    expect(
+      resizeCropByPixels(
+        { ratio: '1:1', x: 0.25, y: 0.25, width: 0.5, height: 0.5 },
+        'north-west',
+        -100,
+        -100,
+        { x: 0, y: 0, width: 1000, height: 1000 }
+      )
+    ).toEqual({
+      ratio: '1:1',
+      x: 0.15,
+      y: 0.15,
+      width: 0.6,
+      height: 0.6
+    });
+  });
+
+  it('reports crop dimensions in source image pixels', () => {
+    expect(
+      getCropPixelSize({ ratio: '4:3', x: 0.125, y: 0, width: 0.75, height: 1 }, 1600, 900)
+    ).toEqual({
+      width: 1200,
+      height: 900
     });
   });
 });

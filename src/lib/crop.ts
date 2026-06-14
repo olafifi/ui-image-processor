@@ -7,7 +7,9 @@ export interface Rect {
   height: number;
 }
 
-export type CropResizeHandle = 'south-east';
+export type CropResizeHandle = 'north-west' | 'north-east' | 'south-west' | 'south-east';
+
+const MIN_CROP_SIZE = 0.05;
 
 const RATIO_VALUE: Record<Exclude<CropRatio, 'free'>, number> = {
   '1:1': 1,
@@ -87,6 +89,17 @@ export function getCropFrameRect(crop: CropRect, imageRect: Rect): Rect {
   };
 }
 
+export function getCropPixelSize(
+  crop: CropRect,
+  imageWidth: number,
+  imageHeight: number
+): { width: number; height: number } {
+  return {
+    width: Math.max(1, Math.round(crop.width * Math.max(1, imageWidth))),
+    height: Math.max(1, Math.round(crop.height * Math.max(1, imageHeight)))
+  };
+}
+
 export function moveCropByPixels(crop: CropRect, deltaX: number, deltaY: number, imageRect: Rect): CropRect {
   if (imageRect.width <= 0 || imageRect.height <= 0) {
     return crop;
@@ -99,6 +112,57 @@ export function moveCropByPixels(crop: CropRect, deltaX: number, deltaY: number,
   });
 }
 
+export function resizeCropByPixels(
+  crop: CropRect,
+  handle: CropResizeHandle,
+  deltaX: number,
+  deltaY: number,
+  imageRect: Rect
+): CropRect {
+  if (imageRect.width <= 0 || imageRect.height <= 0 || crop.width <= 0 || crop.height <= 0) {
+    return crop;
+  }
+
+  const growsEast = handle.endsWith('east');
+  const growsSouth = handle.startsWith('south');
+  const widthDelta = (growsEast ? deltaX : -deltaX) / imageRect.width;
+  const heightDelta = (growsSouth ? deltaY : -deltaY) / imageRect.height;
+
+  if (crop.ratio === 'free') {
+    return placeResizedCrop(crop, handle, crop.width + widthDelta, crop.height + heightDelta);
+  }
+
+  const normalizedAspect = crop.width / crop.height;
+  const proposedWidth = crop.width + widthDelta;
+  const proposedHeight = crop.height + heightDelta;
+  const widthChange = Math.abs(widthDelta / crop.width);
+  const heightChange = Math.abs(heightDelta / crop.height);
+  let nextWidth = widthChange >= heightChange ? proposedWidth : proposedHeight * normalizedAspect;
+  let nextHeight = nextWidth / normalizedAspect;
+
+  if (nextHeight < MIN_CROP_SIZE) {
+    nextHeight = MIN_CROP_SIZE;
+    nextWidth = nextHeight * normalizedAspect;
+  }
+  if (nextWidth < MIN_CROP_SIZE) {
+    nextWidth = MIN_CROP_SIZE;
+    nextHeight = nextWidth / normalizedAspect;
+  }
+
+  const maxWidth = growsEast ? 1 - crop.x : crop.x + crop.width;
+  const maxHeight = growsSouth ? 1 - crop.y : crop.y + crop.height;
+  if (nextWidth > maxWidth) {
+    nextWidth = maxWidth;
+    nextHeight = nextWidth / normalizedAspect;
+  }
+  if (nextHeight > maxHeight) {
+    nextHeight = maxHeight;
+    nextWidth = nextHeight * normalizedAspect;
+  }
+
+  return placeResizedCrop(crop, handle, nextWidth, nextHeight);
+}
+
 export function resizeFreeCropByPixels(
   crop: CropRect,
   handle: CropResizeHandle,
@@ -106,22 +170,30 @@ export function resizeFreeCropByPixels(
   deltaY: number,
   imageRect: Rect
 ): CropRect {
-  if (handle !== 'south-east' || imageRect.width <= 0 || imageRect.height <= 0) {
-    return crop;
-  }
+  return resizeCropByPixels({ ...crop, ratio: 'free' }, handle, deltaX, deltaY, imageRect);
+}
+
+function placeResizedCrop(
+  crop: CropRect,
+  handle: CropResizeHandle,
+  width: number,
+  height: number
+): CropRect {
+  const growsEast = handle.endsWith('east');
+  const growsSouth = handle.startsWith('south');
 
   return normalizeCrop({
     ...crop,
-    ratio: 'free',
-    width: crop.width + deltaX / imageRect.width,
-    height: crop.height + deltaY / imageRect.height
+    x: growsEast ? crop.x : crop.x + crop.width - width,
+    y: growsSouth ? crop.y : crop.y + crop.height - height,
+    width,
+    height
   });
 }
 
 function normalizeCrop(crop: CropRect): CropRect {
-  const minSize = 0.05;
-  const width = clamp(crop.width, minSize, 1);
-  const height = clamp(crop.height, minSize, 1);
+  const width = clamp(crop.width, MIN_CROP_SIZE, 1);
+  const height = clamp(crop.height, MIN_CROP_SIZE, 1);
   const x = clamp(crop.x, 0, 1 - width);
   const y = clamp(crop.y, 0, 1 - height);
 

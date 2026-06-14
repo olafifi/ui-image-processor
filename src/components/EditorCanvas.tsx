@@ -2,11 +2,14 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent
 import { Icon } from './Icon';
 import { ToolBar } from './ToolBar';
 import {
+  getCropPixelSize,
   getContainedImageRect,
   moveCropByPixels,
-  resizeFreeCropByPixels,
+  resizeCropByPixels,
+  type CropResizeHandle,
   type Rect
 } from '../lib/crop';
+import { resolveExportSize } from '../lib/canvasExport';
 import type { AppMode, CropRatio, CropRect, CutoutEditRequest, EditorTool, ImageQueueItem } from '../types';
 
 const cropRatios: Array<{ label: string; value: CropRatio }> = [
@@ -16,6 +19,13 @@ const cropRatios: Array<{ label: string; value: CropRatio }> = [
   { label: '16:9', value: '16:9' },
   { label: '9:16', value: '9:16' },
   { label: '自由', value: 'free' }
+];
+
+const cropHandles: Array<{ className: string; handle: CropResizeHandle; label: string }> = [
+  { className: 'crop-handle-nw', handle: 'north-west', label: '调整裁剪框左上角' },
+  { className: 'crop-handle-ne', handle: 'north-east', label: '调整裁剪框右上角' },
+  { className: 'crop-handle-sw', handle: 'south-west', label: '调整裁剪框左下角' },
+  { className: 'crop-handle-se', handle: 'south-east', label: '调整裁剪框右下角' }
 ];
 
 interface EditorCanvasProps {
@@ -64,6 +74,7 @@ export function EditorCanvas({
   const strokePointsRef = useRef<Array<{ x: number; y: number }>>([]);
   const interactionRef = useRef<null | {
     crop: CropRect;
+    handle?: CropResizeHandle;
     startX: number;
     startY: number;
     type: 'move' | 'resize';
@@ -103,9 +114,26 @@ export function EditorCanvas({
       : activeItem?.exportSettings.format === 'jpeg'
         ? 'JPG'
         : 'PNG';
-  const width = activeItem?.exportSettings.width ?? 1024;
-  const height = activeItem?.exportSettings.height ?? 1024;
   const crop = activeItem?.crop;
+  const sourceSize = activeItem
+    ? {
+        width: activeItem.naturalWidth || 1,
+        height: activeItem.naturalHeight || 1
+      }
+    : { width: 1, height: 1 };
+  const cropSize = crop
+    ? getCropPixelSize(crop, sourceSize.width, sourceSize.height)
+    : {
+        width: 0,
+        height: 0
+      };
+  const outputSize =
+    activeItem && crop
+      ? resolveExportSize(sourceSize, crop, activeItem.exportSettings)
+      : {
+          width: 0,
+          height: 0
+        };
   const imageRect = useMemo<Rect>(() => {
     if (!activeItem || activeItem.naturalWidth <= 0 || activeItem.naturalHeight <= 0) {
       return { x: 0, y: 0, width: previewSize.width, height: previewSize.height };
@@ -118,11 +146,15 @@ export function EditorCanvas({
       activeItem.naturalHeight
     );
   }, [activeItem, previewSize.height, previewSize.width]);
-  const canEditFreeCrop = activeTool === 'crop' && crop?.ratio === 'free';
+  const canEditCrop = activeTool === 'crop' && Boolean(crop);
   const canEditCutout = Boolean(activeItem && activeTool !== 'crop');
+  const previewCornerRadius =
+    activeItem && crop
+      ? getPreviewCornerRadius(activeItem.exportSettings.cornerRadius, crop, imageRect, outputSize)
+      : 0;
 
   function beginCropMove(event: PointerEvent<HTMLDivElement>) {
-    if (!crop || !canEditFreeCrop) {
+    if (!crop || !canEditCrop) {
       return;
     }
 
@@ -136,8 +168,8 @@ export function EditorCanvas({
     };
   }
 
-  function beginCropResize(event: PointerEvent<HTMLButtonElement>) {
-    if (!crop || !canEditFreeCrop) {
+  function beginCropResize(event: PointerEvent<HTMLButtonElement>, handle: CropResizeHandle) {
+    if (!crop || !canEditCrop) {
       return;
     }
 
@@ -146,6 +178,7 @@ export function EditorCanvas({
     event.currentTarget.setPointerCapture(event.pointerId);
     interactionRef.current = {
       crop,
+      handle,
       startX: event.clientX,
       startY: event.clientY,
       type: 'resize'
@@ -161,10 +194,17 @@ export function EditorCanvas({
     event.preventDefault();
     const deltaX = event.clientX - interaction.startX;
     const deltaY = event.clientY - interaction.startY;
+    const interactionRect = getInteractionImageRect(event.currentTarget, imageRect);
     const nextCrop =
       interaction.type === 'move'
-        ? moveCropByPixels(interaction.crop, deltaX, deltaY, imageRect)
-        : resizeFreeCropByPixels(interaction.crop, 'south-east', deltaX, deltaY, imageRect);
+        ? moveCropByPixels(interaction.crop, deltaX, deltaY, interactionRect)
+        : resizeCropByPixels(
+            interaction.crop,
+            interaction.handle ?? 'south-east',
+            deltaX,
+            deltaY,
+            interactionRect
+          );
 
     onChangeCrop(nextCrop);
   }
@@ -320,30 +360,32 @@ export function EditorCanvas({
                 />
                 {crop && (
                   <div
-                    className={canEditFreeCrop ? 'crop-frame crop-frame-editable' : 'crop-frame'}
+                    className={canEditCrop ? 'crop-frame crop-frame-editable' : 'crop-frame'}
                     onPointerCancel={endCropInteraction}
                     onPointerDown={beginCropMove}
                     onPointerMove={updateCropFromPointer}
                     onPointerUp={endCropInteraction}
                     style={{
-                      borderRadius: `${Math.min(activeItem.exportSettings.cornerRadius, 48)}px`,
+                      borderRadius: `${previewCornerRadius}px`,
                       height: `${crop.height * 100}%`,
                       left: `${crop.x * 100}%`,
                       top: `${crop.y * 100}%`,
                       width: `${crop.width * 100}%`
                     }}
                   >
-                    {canEditFreeCrop && (
-                      <button
-                        aria-label="调整裁剪框右下角"
-                        className="crop-handle crop-handle-se"
-                        onPointerCancel={endCropInteraction}
-                        onPointerDown={beginCropResize}
-                        onPointerMove={updateCropFromPointer}
-                        onPointerUp={endCropInteraction}
-                        type="button"
-                      />
-                    )}
+                    {canEditCrop &&
+                      cropHandles.map((handle) => (
+                        <button
+                          aria-label={handle.label}
+                          className={`crop-handle ${handle.className}`}
+                          key={handle.handle}
+                          onPointerCancel={endCropInteraction}
+                          onPointerDown={(event) => beginCropResize(event, handle.handle)}
+                          onPointerMove={updateCropFromPointer}
+                          onPointerUp={endCropInteraction}
+                          type="button"
+                        />
+                      ))}
                   </div>
                 )}
               </div>
@@ -380,11 +422,48 @@ export function EditorCanvas({
           透明背景
         </button>
         <span className="summary">
-          导出：{exportFormat} · {width} x {height}
+          裁剪：{cropSize.width} x {cropSize.height} · 导出：{exportFormat} · {outputSize.width} x {outputSize.height}
         </span>
       </div>
     </main>
   );
+}
+
+function getInteractionImageRect(target: HTMLElement, fallback: Rect): Rect {
+  const layer = target.closest('.image-fit-layer');
+  if (layer instanceof HTMLElement) {
+    const rect = layer.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      return {
+        x: 0,
+        y: 0,
+        width: rect.width,
+        height: rect.height
+      };
+    }
+  }
+
+  return fallback;
+}
+
+function getPreviewCornerRadius(
+  cornerRadius: number,
+  crop: CropRect,
+  imageRect: Rect,
+  outputSize: { width: number; height: number }
+): number {
+  if (cornerRadius <= 0 || outputSize.width <= 0 || outputSize.height <= 0) {
+    return 0;
+  }
+
+  const frameWidth = crop.width * imageRect.width;
+  const frameHeight = crop.height * imageRect.height;
+  if (frameWidth <= 0 || frameHeight <= 0) {
+    return 0;
+  }
+
+  const scale = Math.min(frameWidth / outputSize.width, frameHeight / outputSize.height);
+  return Math.round(Math.min(cornerRadius * scale, frameWidth / 2, frameHeight / 2));
 }
 
 function getImagePoint(event: PointerEvent<HTMLDivElement>, activeItem?: ImageQueueItem) {

@@ -1,11 +1,16 @@
 import type { CropRect, ExportFormat, ExportSettings } from '../types';
 
 export function normalizeExportSettings(settings: ExportSettings): ExportSettings {
-  if (settings.backgroundType === 'transparent' && settings.format === 'jpeg') {
-    return { ...settings, format: 'png' };
+  const normalized = {
+    ...settings,
+    sizeMode: settings.sizeMode ?? 'crop'
+  };
+
+  if (normalized.backgroundType === 'transparent' && normalized.format === 'jpeg') {
+    return { ...normalized, format: 'png' };
   }
 
-  return settings;
+  return normalized;
 }
 
 export function extensionForFormat(format: ExportFormat): string {
@@ -22,9 +27,11 @@ export async function exportCanvasImage(
   settings: ExportSettings
 ): Promise<Blob> {
   const normalized = normalizeExportSettings(settings);
+  const sourceSize = getCanvasSourceSize(source);
+  const outputSize = resolveExportSize(sourceSize, crop, normalized);
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(normalized.width));
-  canvas.height = Math.max(1, Math.round(normalized.height));
+  canvas.width = outputSize.width;
+  canvas.height = outputSize.height;
 
   const context = canvas.getContext('2d');
   if (!context) {
@@ -36,7 +43,6 @@ export async function exportCanvasImage(
     context.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  const sourceSize = getCanvasSourceSize(source);
   const sx = crop.x * sourceSize.width;
   const sy = crop.y * sourceSize.height;
   const sw = crop.width * sourceSize.width;
@@ -48,6 +54,25 @@ export async function exportCanvasImage(
   context.restore();
 
   return canvasToBlob(canvas, normalized.format);
+}
+
+export function resolveExportSize(
+  sourceSize: { width: number; height: number },
+  crop: CropRect,
+  settings: ExportSettings
+): { width: number; height: number } {
+  const normalized = normalizeExportSettings(settings);
+  if (normalized.sizeMode === 'custom') {
+    return {
+      width: Math.max(1, Math.round(normalized.width)),
+      height: Math.max(1, Math.round(normalized.height))
+    };
+  }
+
+  return {
+    width: Math.max(1, Math.round(crop.width * sourceSize.width)),
+    height: Math.max(1, Math.round(crop.height * sourceSize.height))
+  };
 }
 
 function getCanvasSourceSize(source: CanvasImageSource): { width: number; height: number } {

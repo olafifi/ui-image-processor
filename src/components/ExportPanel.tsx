@@ -1,4 +1,5 @@
 import { Icon } from './Icon';
+import { resolveExportSize } from '../lib/canvasExport';
 import type { ExportSettings, ImageQueueItem } from '../types';
 
 interface ExportPanelProps {
@@ -10,6 +11,7 @@ interface ExportPanelProps {
   onExportCurrent: () => void;
   onExportZip: () => void;
   onOpenTemplate: () => void;
+  onResetSize: () => void;
   onUpdateSettings: (settings: Partial<ExportSettings>) => void;
   status?: string;
 }
@@ -23,10 +25,35 @@ export function ExportPanel({
   onExportCurrent,
   onExportZip,
   onOpenTemplate,
+  onResetSize,
   onUpdateSettings,
   status
 }: ExportPanelProps) {
   const settings = activeItem?.exportSettings;
+  const crop = activeItem?.crop;
+  const sourceSize = activeItem
+    ? {
+        width: activeItem.naturalWidth || 1,
+        height: activeItem.naturalHeight || 1
+      }
+    : { width: 1, height: 1 };
+  const outputSize =
+    settings && crop
+      ? resolveExportSize(sourceSize, crop, settings)
+      : {
+          width: 0,
+          height: 0
+        };
+  const cropSize =
+    activeItem && crop
+      ? {
+          width: Math.max(1, Math.round(crop.width * sourceSize.width)),
+          height: Math.max(1, Math.round(crop.height * sourceSize.height))
+        }
+      : {
+          width: 0,
+          height: 0
+        };
   const formatLabel = settings?.backgroundType === 'solid' && settings.format === 'jpeg' ? 'JPG' : 'PNG';
 
   return (
@@ -44,6 +71,7 @@ export function ExportPanel({
       </div>
       <div className="field">
         <strong>输出尺寸</strong>
+        <span className="field-note">裁剪尺寸 {cropSize.width} x {cropSize.height}</span>
         <div className="inline-inputs">
           <label>
             <span>宽</span>
@@ -53,7 +81,7 @@ export function ExportPanel({
               min={1}
               onChange={(event) => onUpdateSettings({ width: toPositiveInt(event.currentTarget.value, 1024) })}
               type="number"
-              value={settings?.width ?? 1024}
+              value={outputSize.width || 1024}
             />
           </label>
           <label>
@@ -64,10 +92,18 @@ export function ExportPanel({
               min={1}
               onChange={(event) => onUpdateSettings({ height: toPositiveInt(event.currentTarget.value, 1024) })}
               type="number"
-              value={settings?.height ?? 1024}
+              value={outputSize.height || 1024}
             />
           </label>
         </div>
+        <button
+          className="mini-button"
+          disabled={!settings || settings.sizeMode === 'crop'}
+          onClick={onResetSize}
+          type="button"
+        >
+          使用裁剪尺寸
+        </button>
       </div>
       <div className="field">
         <strong>格式与背景</strong>

@@ -30,8 +30,9 @@ import type {
 
 const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   format: 'png',
-  width: 1024,
-  height: 1024,
+  sizeMode: 'crop',
+  width: 0,
+  height: 0,
   backgroundType: 'transparent',
   backgroundColor: '#ffffff',
   cornerRadius: 0
@@ -221,10 +222,17 @@ export function App({
     (settings: Partial<ExportSettings>) => {
       updateActiveItem((item) => ({
         ...item,
-        exportSettings: normalizeExportSettings({
-          ...item.exportSettings,
-          ...settings
-        })
+        exportSettings: syncExportSettingsToCrop(
+          normalizeExportSettings({
+            ...item.exportSettings,
+            ...settings,
+            ...(settings.width !== undefined || settings.height !== undefined ? { sizeMode: 'custom' as const } : {})
+          }),
+          item.crop,
+          item.naturalWidth,
+          item.naturalHeight,
+          settings.width !== undefined ? 'width' : settings.height !== undefined ? 'height' : undefined
+        )
       }));
     },
     [updateActiveItem]
@@ -237,11 +245,13 @@ export function App({
           return item;
         }
 
+        const crop = fitCropToRatio(width, height, item.crop.ratio);
         return {
           ...item,
           naturalWidth: width,
           naturalHeight: height,
-          crop: fitCropToRatio(width, height, item.crop.ratio)
+          crop,
+          exportSettings: syncExportSettingsToCrop(item.exportSettings, crop, width, height)
         };
       })
     );
@@ -251,7 +261,13 @@ export function App({
     (ratio: CropRatio) => {
       updateActiveItem((item) => ({
         ...item,
-        crop: fitCropToRatio(item.naturalWidth, item.naturalHeight, ratio)
+        crop: fitCropToRatio(item.naturalWidth, item.naturalHeight, ratio),
+        exportSettings: syncExportSettingsToCrop(
+          item.exportSettings,
+          fitCropToRatio(item.naturalWidth, item.naturalHeight, ratio),
+          item.naturalWidth,
+          item.naturalHeight
+        )
       }));
     },
     [updateActiveItem]
@@ -261,7 +277,8 @@ export function App({
     (crop: CropRect) => {
       updateActiveItem((item) => ({
         ...item,
-        crop
+        crop,
+        exportSettings: syncExportSettingsToCrop(item.exportSettings, crop, item.naturalWidth, item.naturalHeight)
       }));
     },
     [updateActiveItem]
@@ -289,10 +306,7 @@ export function App({
     setItems((current) =>
       current.map((item) => ({
         ...item,
-        crop:
-          activeItem.crop.ratio === 'free'
-            ? activeItem.crop
-            : fitCropToRatio(item.naturalWidth, item.naturalHeight, activeItem.crop.ratio),
+        crop: activeItem.crop,
         exportSettings: { ...activeItem.exportSettings }
       }))
     );
@@ -417,8 +431,7 @@ export function App({
     async (item: ImageQueueItem) => {
       const image = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
       const settings = normalizeExportSettings(item.exportSettings);
-      const crop = resolveCropForImage(item, image, item.crop.ratio);
-      const blob = await exportImage(image, crop, settings);
+      const blob = await exportImage(image, item.crop, settings);
       return { blob, settings };
     },
     [exportImage, loadImage]
@@ -452,7 +465,6 @@ export function App({
 
     const templateItem = activeItem ?? items[0];
     const settings = normalizeExportSettings(templateItem.exportSettings);
-    const ratio = templateItem.crop.ratio;
     setIsExporting(true);
     setExportError(undefined);
     setExportStatus('正在生成 ZIP...');
@@ -462,7 +474,7 @@ export function App({
       for (const item of items) {
         const image = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
         files.push({
-          blob: await exportImage(image, resolveCropForImage(item, image, ratio), settings),
+          blob: await exportImage(image, item.crop, settings),
           originalName: item.originalName,
           targetName: item.targetName
         });
@@ -539,6 +551,7 @@ export function App({
             onExportCurrent={exportCurrent}
             onExportZip={exportZip}
             onOpenTemplate={() => setIsTemplateOpen(true)}
+            onResetSize={() => updateActiveSettings({ sizeMode: 'crop', width: 0, height: 0 })}
             onUpdateSettings={updateActiveSettings}
             status={exportStatus}
           />
@@ -555,12 +568,6 @@ export function App({
       )}
     </div>
   );
-}
-
-function resolveCropForImage(item: ImageQueueItem, image: HTMLImageElement, ratio: CropRatio) {
-  const width = image.naturalWidth || item.naturalWidth;
-  const height = image.naturalHeight || item.naturalHeight;
-  return ratio === 'free' ? item.crop : fitCropToRatio(width, height, ratio);
 }
 
 function pushHistory(item: ImageQueueItem, processedPreviewUrl: string) {
@@ -593,6 +600,42 @@ function moveHistory(item: ImageQueueItem, delta: -1 | 1): ImageQueueItem {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function syncExportSettingsToCrop(
+  settings: ExportSettings,
+  crop: CropRect,
+  imageWidth: number,
+  imageHeight: number,
+  changedDimension: 'width' | 'height' = 'width'
+): ExportSettings {
+  const normalized = normalizeExportSettings(settings);
+  if (normalized.sizeMode !== 'custom') {
+    return normalized;
+  }
+
+  const cropWidth = crop.width * imageWidth;
+  const cropHeight = crop.height * imageHeight;
+  if (cropWidth <= 0 || cropHeight <= 0) {
+    return normalized;
+  }
+
+  const aspect = cropWidth / cropHeight;
+  if (changedDimension === 'height') {
+    const height = Math.max(1, Math.round(normalized.height));
+    return {
+      ...normalized,
+      height,
+      width: Math.max(1, Math.round(height * aspect))
+    };
+  }
+
+  const width = Math.max(1, Math.round(normalized.width));
+  return {
+    ...normalized,
+    width,
+    height: Math.max(1, Math.round(width / aspect))
+  };
 }
 
 function getErrorMessage(error: unknown): string {

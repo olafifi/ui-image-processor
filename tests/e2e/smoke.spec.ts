@@ -76,6 +76,46 @@ test('free crop mode can be resized directly on the canvas', async ({ page }) =>
   expect(after!.height).toBeLessThan(before!.height - 20);
 });
 
+test('fixed ratio crop can be resized and keeps crop-sized export dimensions', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByLabel('导入图片文件').setInputFiles({
+    name: 'wide-fixed-ratio.png',
+    mimeType: 'image/png',
+    buffer: createSolidPng(1600, 900)
+  });
+  const image = page.getByRole('img', { name: 'wide-fixed-ratio.png' });
+  await image.waitFor();
+  await expect.poll(async () => image.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(1600);
+
+  await page.getByRole('button', { name: '4:3' }).click();
+  await expect(page.getByText(/裁剪：1200 x 900/)).toBeVisible();
+  await expect(page.getByLabel('导出宽度')).toHaveValue('1200');
+  await expect(page.getByLabel('导出高度')).toHaveValue('900');
+
+  const frame = page.locator('.crop-frame');
+  const handle = page.getByLabel('调整裁剪框右下角');
+  await expect(handle).toBeVisible();
+
+  const before = await frame.boundingBox();
+  const preview = await page.locator('.canvas-preview').boundingBox();
+  expect(before).not.toBeNull();
+  expect(preview).not.toBeNull();
+
+  await handle.dragTo(page.locator('.canvas-preview'), {
+    targetPosition: {
+      x: Math.round(before!.x - preview!.x + before!.width - 120),
+      y: Math.round(before!.y - preview!.y + before!.height - 90)
+    }
+  });
+
+  const after = await frame.boundingBox();
+  expect(after).not.toBeNull();
+  expect(after!.width).toBeLessThan(before!.width - 20);
+  expect(after!.height).toBeLessThan(before!.height - 20);
+  expect(after!.width / after!.height).toBeCloseTo(4 / 3, 1);
+});
+
 function createSolidPng(width: number, height: number): Buffer {
   const bytesPerPixel = 3;
   const stride = 1 + width * bytesPerPixel;

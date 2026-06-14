@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import JSZip from 'jszip';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -272,6 +272,62 @@ describe('App layout', () => {
     expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'card.png');
   });
 
+  it('shows crop-sized export dimensions instead of forcing 1024 square output', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image'], 'wide-card.png', { type: 'image/png' })
+    ]);
+    fireImageLoad('wide-card.png', 1600, 900);
+    await user.click(screen.getByRole('button', { name: '4:3' }));
+
+    expect(screen.getByText(/裁剪：1200 x 900/)).toBeInTheDocument();
+    expect(screen.getByText(/导出：PNG · 1200 x 900/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue('1200')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('900')).toBeInTheDocument();
+  });
+
+  it('applies the active crop rectangle to all images before zip export', async () => {
+    const user = userEvent.setup();
+    const exportImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
+    const createZip = vi.fn(async () => new Blob(['zip'], { type: 'application/zip' }));
+    const downloadBlob = vi.fn();
+    const loadImage = vi
+      .fn()
+      .mockResolvedValueOnce({ naturalWidth: 1600, naturalHeight: 900 } as HTMLImageElement)
+      .mockResolvedValueOnce({ naturalWidth: 900, naturalHeight: 1600 } as HTMLImageElement);
+
+    render(
+      <App
+        createZip={createZip}
+        downloadBlob={downloadBlob}
+        exportImage={exportImage}
+        loadImage={loadImage}
+      />
+    );
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image-a'], 'wide.png', { type: 'image/png' }),
+      new File(['image-b'], 'portrait.png', { type: 'image/png' })
+    ]);
+    fireImageLoad('wide.png', 1600, 900);
+    await user.click(screen.getByRole('button', { name: 'portrait.png' }));
+    fireImageLoad('portrait.png', 900, 1600);
+    await user.click(screen.getByRole('button', { name: 'wide.png' }));
+    await user.click(screen.getByRole('button', { name: '4:3' }));
+    await user.click(screen.getByRole('button', { name: /应用到全部/ }));
+    await user.click(screen.getByRole('button', { name: /下载 ZIP/ }));
+
+    await waitFor(() => expect(exportImage).toHaveBeenCalledTimes(2));
+    expect(exportImage).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({ ratio: '4:3', x: 0.125, y: 0, width: 0.75, height: 1 }),
+      expect.anything()
+    );
+  });
+
   it('exports the processed preview when automatic cutout is ready', async () => {
     const user = userEvent.setup();
     const exportImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
@@ -420,6 +476,13 @@ function columnName(index: number): string {
     value = Math.floor((value - remainder) / 26);
   }
   return name;
+}
+
+function fireImageLoad(name: string, naturalWidth: number, naturalHeight: number) {
+  const image = screen.getByRole('img', { name }) as HTMLImageElement;
+  Object.defineProperty(image, 'naturalWidth', { configurable: true, value: naturalWidth });
+  Object.defineProperty(image, 'naturalHeight', { configurable: true, value: naturalHeight });
+  fireEvent.load(image);
 }
 
 function escapeXml(value: string): string {

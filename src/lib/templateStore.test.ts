@@ -16,6 +16,7 @@ describe('template store', () => {
       },
       exportSettings: {
         format: 'png',
+        sizeMode: 'custom',
         width: 1024,
         height: 1024,
         backgroundType: 'transparent',

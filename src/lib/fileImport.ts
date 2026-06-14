@@ -37,8 +37,9 @@ export function createImageQueueItem(file: File, previewUrl: string, id = crypto
     },
     exportSettings: {
       format: 'png',
-      width: 1024,
-      height: 1024,
+      sizeMode: 'crop',
+      width: 0,
+      height: 0,
       backgroundType: 'transparent',
       backgroundColor: '#ffffff',
       cornerRadius: 0

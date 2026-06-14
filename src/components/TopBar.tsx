@@ -18,12 +18,16 @@ export function TopBar({
   workspaceMode
 }: TopBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const brandIconUrl = `${import.meta.env.BASE_URL}favicon.svg`;
 
   return (
     <header className="topbar">
       <div className="brand">
-        <strong>UI 图片处理器</strong>
-        <span>本地处理 · PNG 工作流</span>
+        <img alt="" aria-hidden="true" className="brand-icon" src={brandIconUrl} />
+        <div className="brand-copy">
+          <strong>FIFI 图片处理</strong>
+          <span>本地处理 · PNG 工作流</span>
+        </div>
       </div>
 
       <nav className="primary-actions" aria-label="核心功能">

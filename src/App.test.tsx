@@ -22,6 +22,8 @@ describe('App layout', () => {
     render(<App />);
 
     const workspaceSwitcher = screen.getByRole('group', { name: '工作区切换' });
+    expect(screen.getByText('FIFI 图片处理')).toBeInTheDocument();
+    expect(screen.queryByText('UI 图片处理器')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /导入图片/ })).toBeInTheDocument();
     expect(within(workspaceSwitcher).getByRole('button', { name: /抠图\/裁剪/ })).toHaveAttribute(
       'aria-pressed',

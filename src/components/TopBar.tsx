@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { Icon } from './Icon';
+import { ThemeSwitcher } from './ThemeSwitcher';
 import type { AppMode, WorkspaceMode } from '../types';
 
 interface TopBarProps {
@@ -71,9 +72,12 @@ export function TopBar({
         </div>
       </nav>
 
-      <div className="status">
-        <span className={samMode === 'full' ? 'dot' : 'dot degraded'} />
-        {samMode === 'full' ? '本地模型模式' : '启发式兜底'}
+      <div className="topbar-right">
+        <ThemeSwitcher />
+        <div className="status">
+          <span className={samMode === 'full' ? 'dot' : 'dot degraded'} />
+          {samMode === 'full' ? '本地模型模式' : '启发式兜底'}
+        </div>
       </div>
     </header>
   );

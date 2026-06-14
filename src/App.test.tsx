@@ -6,6 +6,8 @@ import { App } from './App';
 
 describe('App layout', () => {
   beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.removeAttribute('data-theme');
     vi.stubGlobal('URL', {
       createObjectURL: vi.fn((file: File | Blob) => `blob:${'name' in file ? file.name : 'download'}`),
       revokeObjectURL: vi.fn()
@@ -34,6 +36,29 @@ describe('App layout', () => {
     expect(screen.getByText('裁剪模板与导出')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /保存\/套用裁剪模板/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /下载 ZIP/ })).toBeInTheDocument();
+  });
+
+  it('opens the theme palette and persists the selected theme', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /切换配色/ }));
+    expect(screen.getByRole('listbox', { name: '配色主题' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('option', { name: /月雾蓝/ }));
+
+    expect(document.documentElement).toHaveAttribute('data-theme', 'moon-blue');
+    expect(localStorage.getItem('fifi-image-theme')).toBe('moon-blue');
+    expect(screen.getByRole('button', { name: /当前：月雾蓝/ })).toBeInTheDocument();
+  });
+
+  it('restores the persisted theme when the app loads', async () => {
+    localStorage.setItem('fifi-image-theme', 'graphite');
+
+    render(<App />);
+
+    await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'graphite'));
+    expect(screen.getByRole('button', { name: /当前：夜间石墨/ })).toBeInTheDocument();
   });
 
   it('separates repair tools from history controls', () => {

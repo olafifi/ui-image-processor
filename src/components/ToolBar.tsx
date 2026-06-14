@@ -26,9 +26,9 @@ export function ToolBar({
   onChangeTool,
   onRedo,
   onUndo,
-  samMode
+  samMode: _samMode
 }: ToolBarProps) {
-  const pointTitle = samMode === 'full' ? 'SAM 点选' : '智能点选';
+  const pointTitle = '智能点选';
 
   return (
     <div className="toolbar">

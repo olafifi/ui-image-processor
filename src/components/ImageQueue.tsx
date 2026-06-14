@@ -1,14 +1,16 @@
 import type { DragEvent } from 'react';
 import type { ImageQueueItem } from '../types';
+import { Icon } from './Icon';
 
 interface ImageQueueProps {
   activeId?: string;
   items: ImageQueueItem[];
-  onSelectItem: (id: string) => void;
   onImportFiles: (files: Iterable<File>) => void;
+  onRemoveItem: (id: string) => void;
+  onSelectItem: (id: string) => void;
 }
 
-export function ImageQueue({ activeId, items, onImportFiles, onSelectItem }: ImageQueueProps) {
+export function ImageQueue({ activeId, items, onImportFiles, onRemoveItem, onSelectItem }: ImageQueueProps) {
   function handleDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     onImportFiles(event.dataTransfer.files);
@@ -27,14 +29,23 @@ export function ImageQueue({ activeId, items, onImportFiles, onSelectItem }: Ima
       </div>
 
       {items.map((item) => (
-        <button
+        <div
           className={item.id === activeId ? 'thumb active' : 'thumb'}
           key={item.id}
-          onClick={() => onSelectItem(item.id)}
-          type="button"
         >
-          {item.originalName}
-        </button>
+          <button className="thumb-main" onClick={() => onSelectItem(item.id)} type="button">
+            {item.originalName}
+          </button>
+          <button
+            aria-label={`移除 ${item.originalName}`}
+            className="thumb-remove"
+            onClick={() => onRemoveItem(item.id)}
+            title="移除图片"
+            type="button"
+          >
+            <Icon name="close" />
+          </button>
+        </div>
       ))}
 
       <div className="spacer" />

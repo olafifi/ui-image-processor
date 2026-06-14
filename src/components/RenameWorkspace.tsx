@@ -1,23 +1,34 @@
 import { useMemo, useState } from 'react';
 import { buildRenameCsv, parseRenameCsvBuffer, parseRenameXlsx } from '../lib/csvRename';
 import type { ImageQueueItem, RenameMapping } from '../types';
+import { Icon } from './Icon';
 
 interface RenameWorkspaceProps {
   activeId?: string;
+  error?: string;
+  isBusy: boolean;
   items: ImageQueueItem[];
   onApplyMappings: (mappings: RenameMapping[]) => void;
   onBack: () => void;
+  onExportCurrent: () => void;
+  onExportZip: () => void;
   onSelectItem: (id: string) => void;
   onUpdateTargetName: (id: string, targetName: string) => void;
+  status?: string;
 }
 
 export function RenameWorkspace({
   activeId,
+  error,
+  isBusy,
   items,
   onApplyMappings,
   onBack,
+  onExportCurrent,
+  onExportZip,
   onSelectItem,
-  onUpdateTargetName
+  onUpdateTargetName,
+  status: exportStatus
 }: RenameWorkspaceProps) {
   const [errors, setErrors] = useState<string[]>([]);
   const [status, setStatus] = useState<string>();
@@ -27,6 +38,10 @@ export function RenameWorkspace({
     [activeId, items]
   );
   const mappedCount = items.filter((item) => item.targetName.trim()).length;
+  const formatLabel =
+    activeItem?.exportSettings.backgroundType === 'solid' && activeItem.exportSettings.format === 'jpeg'
+      ? 'JPG'
+      : 'PNG';
 
   function downloadTemplate() {
     const csv = buildRenameCsv(items.map((item) => item.originalName));
@@ -155,6 +170,19 @@ export function RenameWorkspace({
               ))}
             </ul>
           )}
+          <div className="spacer" />
+          {exportStatus && <div className="panel-status">{exportStatus}</div>}
+          {error && <div className="panel-error">{error}</div>}
+          <div className="export-group rename-export-group">
+            <button className="export-primary" disabled={!activeItem || isBusy} onClick={onExportCurrent} type="button">
+              <Icon name="download" />
+              导出当前 {formatLabel}
+            </button>
+            <button disabled={items.length === 0 || isBusy} onClick={onExportZip} type="button">
+              <Icon name="zip" />
+              下载 ZIP
+            </button>
+          </div>
         </aside>
       </div>
 

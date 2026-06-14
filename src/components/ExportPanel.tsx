@@ -32,7 +32,7 @@ export function ExportPanel({
   return (
     <aside className="panel">
       <div className="side-title">
-        <span>模板与导出</span>
+        <span>裁剪模板与导出</span>
         <button className="ghost-button" type="button">
           收起
         </button>
@@ -142,7 +142,7 @@ export function ExportPanel({
       <div className="export-group">
         <button onClick={onOpenTemplate} type="button">
           <Icon name="save" />
-          保存模板
+          保存/套用裁剪模板
         </button>
         <button disabled={!activeItem || itemCount < 2} onClick={onApplyToAll} type="button">
           <Icon name="template" />

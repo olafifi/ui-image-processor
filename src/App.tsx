@@ -124,6 +124,15 @@ export function App({
           candidate.id === item.id
             ? {
                 ...candidate,
+                ...(force
+                  ? {
+                      baseCutoutUrl: undefined,
+                      cutoutKind: undefined,
+                      editHistory: [candidate.previewUrl],
+                      editHistoryIndex: 0,
+                      processedPreviewUrl: undefined
+                    }
+                  : {}),
                 cutoutMessage: '正在自动抠图...',
                 cutoutStatus: 'processing'
               }
@@ -178,13 +187,6 @@ export function App({
     },
     [autoCutout]
   );
-
-  useEffect(() => {
-    const idleItems = items.filter((item) => item.cutoutStatus === 'idle');
-    for (const item of idleItems) {
-      void startCutout(item);
-    }
-  }, [items, startCutout]);
 
   const saveTemplate = useCallback(
     (template: TemplateDraft) => {
@@ -305,7 +307,7 @@ export function App({
         exportSettings: template.exportSettings
       }));
       setIsTemplateOpen(false);
-      setExportStatus(`已套用模板：${template.name}`);
+      setExportStatus(`已套用裁剪模板：${template.name}`);
     },
     [updateActiveItem]
   );
@@ -323,22 +325,40 @@ export function App({
     setItems((current) => current.map((item) => (item.id === id ? { ...item, targetName } : item)));
   }, []);
 
-  const rerunAutoCutoutAll = useCallback(() => {
-    cutoutJobs.current.clear();
-    setActiveTool('selectAdd');
-    setItems((current) =>
-      current.map((item) => ({
-        ...item,
-        baseCutoutUrl: undefined,
-        cutoutKind: undefined,
-        cutoutMessage: '等待自动抠图',
-        cutoutStatus: 'idle',
-        editHistory: [item.previewUrl],
-        editHistoryIndex: 0,
-        processedPreviewUrl: undefined
-      }))
-    );
+  const removeItem = useCallback((id: string) => {
+    const currentItems = latestItems.current;
+    const removedIndex = currentItems.findIndex((item) => item.id === id);
+    const removedItem = currentItems[removedIndex];
+    if (!removedItem) {
+      return;
+    }
+
+    URL.revokeObjectURL(removedItem.previewUrl);
+    objectUrls.current = objectUrls.current.filter((url) => url !== removedItem.previewUrl);
+    cutoutJobs.current.delete(id);
+
+    const remainingItems = currentItems.filter((item) => item.id !== id);
+    setItems((current) => current.filter((item) => item.id !== id));
+    setActiveId((currentActiveId) => {
+      if (currentActiveId && currentActiveId !== id) {
+        return currentActiveId;
+      }
+
+      return remainingItems[Math.min(removedIndex, remainingItems.length - 1)]?.id;
+    });
   }, []);
+
+  const rerunAutoCutoutAll = useCallback(() => {
+    const queuedItems = latestItems.current;
+    if (queuedItems.length === 0) {
+      return;
+    }
+
+    setActiveTool('selectAdd');
+    for (const item of queuedItems) {
+      void startCutout(item, true);
+    }
+  }, [startCutout]);
 
   const applyCutoutEdit = useCallback(
     (edit: CutoutEditRequest) => {
@@ -395,14 +415,13 @@ export function App({
 
   const exportSingleItem = useCallback(
     async (item: ImageQueueItem) => {
-      const processedItem = await ensureProcessedItem(item, startCutout);
-      const image = await loadImage(processedItem.processedPreviewUrl ?? processedItem.previewUrl);
+      const image = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
       const settings = normalizeExportSettings(item.exportSettings);
       const crop = resolveCropForImage(item, image, item.crop.ratio);
       const blob = await exportImage(image, crop, settings);
       return { blob, settings };
     },
-    [exportImage, loadImage, startCutout]
+    [exportImage, loadImage]
   );
 
   const exportCurrent = useCallback(async () => {
@@ -441,8 +460,7 @@ export function App({
     try {
       const files: ZipFileSource[] = [];
       for (const item of items) {
-        const processedItem = await ensureProcessedItem(item, startCutout);
-        const image = await loadImage(processedItem.processedPreviewUrl ?? processedItem.previewUrl);
+        const image = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
         files.push({
           blob: await exportImage(image, resolveCropForImage(item, image, ratio), settings),
           originalName: item.originalName,
@@ -458,30 +476,30 @@ export function App({
     } finally {
       setIsExporting(false);
     }
-  }, [activeItem, createZip, downloadBlob, exportImage, items, loadImage, startCutout]);
+  }, [activeItem, createZip, downloadBlob, exportImage, items, loadImage]);
 
   return (
     <div className="app-shell">
       <TopBar
-        isTemplateOpen={isTemplateOpen}
         onImportFiles={importFiles}
         onOpenEdit={() => setWorkspaceMode('edit')}
         onOpenRename={() => setWorkspaceMode('rename')}
-        onOpenTemplate={() => {
-          setWorkspaceMode('edit');
-          setIsTemplateOpen(true);
-        }}
         samMode={samMode}
         workspaceMode={workspaceMode}
       />
       {workspaceMode === 'rename' ? (
         <RenameWorkspace
           activeId={activeItem?.id}
+          error={exportError}
+          isBusy={isExporting}
           items={items}
           onApplyMappings={applyRenameMappings}
           onBack={() => setWorkspaceMode('edit')}
+          onExportCurrent={exportCurrent}
+          onExportZip={exportZip}
           onSelectItem={setActiveId}
           onUpdateTargetName={updateTargetName}
+          status={exportStatus}
         />
       ) : (
         <div className="workspace">
@@ -489,6 +507,7 @@ export function App({
             activeId={activeItem?.id}
             items={items}
             onImportFiles={importFiles}
+            onRemoveItem={removeItem}
             onSelectItem={setActiveId}
           />
           <EditorCanvas
@@ -569,26 +588,6 @@ function moveHistory(item: ImageQueueItem, delta: -1 | 1): ImageQueueItem {
     cutoutMessage: delta < 0 ? '已撤销上一步' : '已重做上一步',
     editHistoryIndex: nextIndex,
     processedPreviewUrl: nextPreviewUrl === item.previewUrl ? undefined : nextPreviewUrl
-  };
-}
-
-async function ensureProcessedItem(
-  item: ImageQueueItem,
-  startCutout: (item: ImageQueueItem, force?: boolean) => Promise<AutoCutoutResult>
-): Promise<ImageQueueItem> {
-  if (item.processedPreviewUrl) {
-    return item;
-  }
-
-  const result = await startCutout(item);
-  return {
-    ...item,
-    ...createProcessedHistory(item, result.processedPreviewUrl),
-    baseCutoutUrl: result.processedPreviewUrl,
-    cutoutKind: result.kind,
-    cutoutMessage: result.message,
-    cutoutStatus: 'ready',
-    processedPreviewUrl: result.processedPreviewUrl
   };
 }
 

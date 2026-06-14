@@ -12,9 +12,10 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@imgly/background-removal": "^1.7.0",
     "@vitejs/plugin-react": "latest",
     "jszip": "latest",
-    "onnxruntime-web": "latest",
+    "onnxruntime-web": "^1.21.0",
     "papaparse": "latest",
     "react": "latest",
     "react-dom": "latest",

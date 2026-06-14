@@ -3,21 +3,17 @@ import { Icon } from './Icon';
 import type { AppMode, WorkspaceMode } from '../types';
 
 interface TopBarProps {
-  isTemplateOpen: boolean;
   onImportFiles: (files: Iterable<File>) => void;
   onOpenEdit: () => void;
   onOpenRename: () => void;
-  onOpenTemplate: () => void;
   samMode: AppMode;
   workspaceMode: WorkspaceMode;
 }
 
 export function TopBar({
-  isTemplateOpen,
   onImportFiles,
   onOpenEdit,
   onOpenRename,
-  onOpenTemplate,
   samMode,
   workspaceMode
 }: TopBarProps) {
@@ -60,15 +56,6 @@ export function TopBar({
             抠图/裁剪
           </button>
           <button
-            aria-pressed={isTemplateOpen}
-            className={isTemplateOpen ? 'workspace-action active' : 'workspace-action'}
-            onClick={onOpenTemplate}
-            type="button"
-          >
-            <Icon name="template" />
-            保存/套用模板
-          </button>
-          <button
             aria-pressed={workspaceMode === 'rename'}
             className={workspaceMode === 'rename' ? 'workspace-action active' : 'workspace-action'}
             onClick={onOpenRename}
@@ -82,7 +69,7 @@ export function TopBar({
 
       <div className="status">
         <span className={samMode === 'full' ? 'dot' : 'dot degraded'} />
-        {samMode === 'full' ? 'WebGPU 完整模式' : '降级模式'}
+        {samMode === 'full' ? '本地模型模式' : '启发式兜底'}
       </div>
     </header>
   );

@@ -27,9 +27,10 @@ describe('App layout', () => {
       'aria-pressed',
       'true'
     );
-    expect(within(workspaceSwitcher).getByRole('button', { name: /套用模板/ })).toBeInTheDocument();
+    expect(within(workspaceSwitcher).queryByRole('button', { name: /模板/ })).not.toBeInTheDocument();
     expect(within(workspaceSwitcher).getByRole('button', { name: /批量重命名/ })).toBeInTheDocument();
-    expect(screen.getByText('模板与导出')).toBeInTheDocument();
+    expect(screen.getByText('裁剪模板与导出')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /保存\/套用裁剪模板/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /下载 ZIP/ })).toBeInTheDocument();
   });
 
@@ -66,6 +67,61 @@ describe('App layout', () => {
     expect(screen.queryByText('note.txt')).not.toBeInTheDocument();
   });
 
+  it('does not automatically cut out images immediately after import', async () => {
+    const user = userEvent.setup();
+    const autoCutout = vi.fn(async () => ({
+      kind: 'model-background' as const,
+      message: '已使用本地模型自动抠图',
+      processedPreviewUrl: 'data:image/png;base64,processed'
+    }));
+    render(<App autoCutout={autoCutout} />);
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image'], 'manual-flow.png', { type: 'image/png' })
+    ]);
+
+    expect(await screen.findByRole('img', { name: 'manual-flow.png' })).toBeInTheDocument();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(autoCutout).not.toHaveBeenCalled();
+  });
+
+  it('runs automatic cutout only after the cutout command is clicked', async () => {
+    const user = userEvent.setup();
+    const autoCutout = vi.fn(async () => ({
+      kind: 'model-background' as const,
+      message: '已使用本地模型自动抠图',
+      processedPreviewUrl: 'data:image/png;base64,processed'
+    }));
+    render(<App autoCutout={autoCutout} />);
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image'], 'needs-cutout.png', { type: 'image/png' })
+    ]);
+    expect(autoCutout).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /自动抠图全部/ }));
+
+    await waitFor(() => expect(autoCutout).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('已使用本地模型自动抠图')).toBeInTheDocument();
+  });
+
+  it('removes an imported image from the queue', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image-a'], 'remove-me.png', { type: 'image/png' }),
+      new File(['image-b'], 'keep-me.png', { type: 'image/png' })
+    ]);
+
+    await user.click(screen.getByRole('button', { name: '移除 remove-me.png' }));
+
+    expect(screen.queryByRole('button', { name: 'remove-me.png' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'keep-me.png' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'keep-me.png' })).toBeInTheDocument();
+  });
+
   it('opens the rename workspace from the top bar', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -77,6 +133,47 @@ describe('App layout', () => {
     expect(screen.getByLabelText('上传命名 CSV/XLSX')).toBeInTheDocument();
     expect(screen.getAllByText('旧文件名').length).toBeGreaterThan(0);
     expect(screen.getAllByText('新文件名').length).toBeGreaterThan(0);
+  });
+
+  it('shows export actions in the rename workspace without template actions', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /批量重命名/ }));
+
+    const renameWorkspace = screen.getByRole('region', { name: '批量重命名工作区' });
+    expect(within(renameWorkspace).getByRole('button', { name: /导出当前 PNG/ })).toBeInTheDocument();
+    expect(within(renameWorkspace).getByRole('button', { name: /下载 ZIP/ })).toBeInTheDocument();
+    expect(within(renameWorkspace).queryByRole('button', { name: '保存模板' })).not.toBeInTheDocument();
+  });
+
+  it('exports the current renamed image from the rename workspace', async () => {
+    const user = userEvent.setup();
+    const exportImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
+    const downloadBlob = vi.fn();
+    const mockSource = { naturalWidth: 800, naturalHeight: 600 } as HTMLImageElement;
+    const loadImage = vi.fn(async () => mockSource);
+
+    render(
+      <App
+        downloadBlob={downloadBlob}
+        exportImage={exportImage}
+        loadImage={loadImage}
+      />
+    );
+
+    await user.upload(screen.getByLabelText('导入图片文件'), [
+      new File(['image'], 'rename-card.webp', { type: 'image/webp' })
+    ]);
+    await user.click(screen.getByRole('button', { name: /批量重命名/ }));
+    await user.clear(screen.getByLabelText('新文件名'));
+    await user.type(screen.getByLabelText('新文件名'), 'renamed-card');
+
+    const renameWorkspace = screen.getByRole('region', { name: '批量重命名工作区' });
+    await user.click(within(renameWorkspace).getByRole('button', { name: /导出当前 PNG/ }));
+
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'renamed-card.png'));
+    expect(loadImage).toHaveBeenCalledWith('blob:rename-card.webp');
   });
 
   it('switches back from rename workspace to the edit workspace without losing the active image', async () => {
@@ -130,20 +227,21 @@ describe('App layout', () => {
     expect(screen.getAllByText('ui_cat_angry').length).toBeGreaterThan(0);
   });
 
-  it('opens the template workflow from the top bar', async () => {
+  it('opens the crop template workflow from the export panel', async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: /套用模板/ }));
+    await user.click(screen.getByRole('button', { name: /保存\/套用裁剪模板/ }));
 
-    expect(screen.getByRole('dialog', { name: '模板' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '保存当前设置为模板' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '裁剪模板' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存当前裁剪设置为模板' })).toBeInTheDocument();
   });
 
-  it('shows degraded mode when webgpu is unavailable', () => {
+  it('shows fallback mode when workers are unavailable', () => {
     render(<App />);
 
-    expect(screen.getByText('降级模式')).toBeInTheDocument();
+    expect(screen.getByText('启发式兜底')).toBeInTheDocument();
+    expect(screen.queryByText(/SAM/)).not.toBeInTheDocument();
   });
 
   it('exports the active image through the current export button', async () => {
@@ -198,6 +296,7 @@ describe('App layout', () => {
     await user.upload(screen.getByLabelText('导入图片文件'), [
       new File(['image'], 'fake-transparent.png', { type: 'image/png' })
     ]);
+    await user.click(screen.getByRole('button', { name: /自动抠图全部/ }));
     await waitFor(() => expect(autoCutout).toHaveBeenCalled());
     await user.click(screen.getByRole('button', { name: /导出当前 PNG/ }));
 
@@ -205,25 +304,17 @@ describe('App layout', () => {
     expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'fake-transparent.png');
   });
 
-  it('waits for automatic cutout before exporting an image immediately after import', async () => {
+  it('exports the original preview when cutout has not been requested', async () => {
     const user = userEvent.setup();
     const exportImage = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
     const downloadBlob = vi.fn();
     const mockSource = { naturalWidth: 800, naturalHeight: 600 } as HTMLImageElement;
     const loadImage = vi.fn(async () => mockSource);
-    let resolveCutout!: (value: {
-      kind: 'fake-checkerboard';
-      message: string;
-      processedPreviewUrl: string;
-    }) => void;
-    const cutoutPromise = new Promise<{
-      kind: 'fake-checkerboard';
-      message: string;
-      processedPreviewUrl: string;
-    }>((resolve) => {
-      resolveCutout = resolve;
-    });
-    const autoCutout = vi.fn(() => cutoutPromise);
+    const autoCutout = vi.fn(async () => ({
+      kind: 'fake-checkerboard' as const,
+      message: '已自动抠图',
+      processedPreviewUrl: 'data:image/png;base64,processed-quick'
+    }));
 
     render(
       <App
@@ -237,19 +328,11 @@ describe('App layout', () => {
     await user.upload(screen.getByLabelText('导入图片文件'), [
       new File(['image'], 'quick-export.png', { type: 'image/png' })
     ]);
-    await waitFor(() => expect(autoCutout).toHaveBeenCalled());
     await user.click(screen.getByRole('button', { name: /导出当前 PNG/ }));
 
-    expect(loadImage).not.toHaveBeenCalledWith('blob:quick-export.png');
-
-    resolveCutout({
-      kind: 'fake-checkerboard',
-      message: '已自动抠图',
-      processedPreviewUrl: 'data:image/png;base64,processed-quick'
-    });
-
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'quick-export.png'));
-    expect(loadImage).toHaveBeenCalledWith('data:image/png;base64,processed-quick');
+    expect(autoCutout).not.toHaveBeenCalled();
+    expect(loadImage).toHaveBeenCalledWith('blob:quick-export.png');
   });
 
   it('exports all queued images into a zip', async () => {

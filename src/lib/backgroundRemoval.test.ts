@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { removeBackgroundFromImageData } from './backgroundRemoval';
+import { removeBackgroundFromImageData, runModelBackgroundRemoval } from './backgroundRemoval';
 
 function makeImageData(width: number, height: number, pixel: [number, number, number, number]) {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -23,6 +23,17 @@ function rgbAt(imageData: ImageData, x: number, y: number) {
 }
 
 describe('background removal', () => {
+  it('returns a local model cutout when the browser model succeeds', async () => {
+    const result = await runModelBackgroundRemoval(
+      new Blob(['source'], { type: 'image/png' }),
+      async () => new Blob(['model-png'], { type: 'image/png' })
+    );
+
+    expect(result.kind).toBe('model-background');
+    expect(result.message).toBe('已使用本地模型自动抠图');
+    expect(result.processedPreviewUrl).toBe('data:image/png;base64,bW9kZWwtcG5n');
+  });
+
   it('keeps real alpha instead of replacing it', () => {
     const imageData = makeImageData(3, 3, [255, 255, 255, 255]);
     setPixel(imageData, 0, 0, [255, 255, 255, 0]);

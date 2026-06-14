@@ -10,7 +10,13 @@ export type WorkspaceMode = 'edit' | 'rename';
 
 export type CutoutStatus = 'idle' | 'processing' | 'ready' | 'failed';
 
-export type CutoutKind = 'existing-alpha' | 'fake-checkerboard' | 'light-background' | 'solid-background' | 'unknown';
+export type CutoutKind =
+  | 'model-background'
+  | 'existing-alpha'
+  | 'fake-checkerboard'
+  | 'light-background'
+  | 'solid-background'
+  | 'unknown';
 
 export type EditorTool = 'selectAdd' | 'selectSubtract' | 'eraser' | 'restore' | 'crop';
 

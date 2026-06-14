@@ -1,3 +1,4 @@
+import { removeBackground as imglyRemoveBackground, type Config, type ImageSource } from '@imgly/background-removal';
 import type { CutoutKind, ImageQueueItem } from '../types';
 
 export interface BackgroundRemovalResult {
@@ -12,6 +13,8 @@ export interface AutoCutoutResult {
   message: string;
   processedPreviewUrl: string;
 }
+
+type BackgroundModelRemover = (source: ImageSource, config?: Config) => Promise<Blob>;
 
 interface Color {
   r: number;
@@ -33,8 +36,34 @@ const FOREGROUND_DILATION_RATIO = 0.024;
 const MAX_FOREGROUND_DILATION_RADIUS = 32;
 const SOLID_FOREGROUND_DILATION_RATIO = 0.01;
 const MAX_SOLID_FOREGROUND_DILATION_RADIUS = 10;
+const LOCAL_MODEL_CONFIG: Config = {
+  device: 'cpu',
+  model: 'isnet_quint8',
+  output: { format: 'image/png' }
+};
 
 export async function autoCutoutItem(item: ImageQueueItem): Promise<AutoCutoutResult> {
+  try {
+    return await runModelBackgroundRemoval(item.sourceFile);
+  } catch {
+    return runHeuristicBackgroundRemoval(item);
+  }
+}
+
+export async function runModelBackgroundRemoval(
+  source: ImageSource,
+  remover: BackgroundModelRemover = imglyRemoveBackground,
+  config: Config = LOCAL_MODEL_CONFIG
+): Promise<AutoCutoutResult> {
+  const blob = await remover(source, config);
+  return {
+    kind: 'model-background',
+    message: '已使用本地模型自动抠图',
+    processedPreviewUrl: await blobToDataUrl(blob)
+  };
+}
+
+async function runHeuristicBackgroundRemoval(item: ImageQueueItem): Promise<AutoCutoutResult> {
   const image = await loadHtmlImage(item.previewUrl);
   const canvas = document.createElement('canvas');
   canvas.width = image.naturalWidth || image.width;
@@ -54,6 +83,20 @@ export async function autoCutoutItem(item: ImageQueueItem): Promise<AutoCutoutRe
     message: result.message,
     processedPreviewUrl: canvas.toDataURL('image/png')
   };
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  return `data:${blob.type || 'image/png'};base64,${bytesToBase64(bytes)}`;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
 }
 
 export function removeBackgroundFromImageData(input: ImageData): BackgroundRemovalResult {

@@ -16,7 +16,8 @@ type IconName =
   | 'transparent'
   | 'save'
   | 'download'
-  | 'zip';
+  | 'zip'
+  | 'close';
 
 interface IconProps extends SVGProps<SVGSVGElement> {
   name: IconName;
@@ -141,6 +142,12 @@ const paths: Record<IconName, ReactElement> = {
       <path d="M10 10h2" />
       <path d="M10 13h2" />
       <path d="M9 17h4" />
+    </>
+  ),
+  close: (
+    <>
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
     </>
   )
 };

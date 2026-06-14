@@ -24,15 +24,15 @@ export function detectBrowserCapabilities(): SamCapabilities {
 }
 
 export function detectSamMode(capabilities: SamCapabilities): AppMode {
-  return capabilities.gpuAvailable && capabilities.workerAvailable ? 'full' : 'degraded';
+  return capabilities.workerAvailable ? 'full' : 'degraded';
 }
 
 export class UnavailableSegmenter implements Segmenter {
   async load(): Promise<void> {
-    throw new Error('当前浏览器不支持本地 SAM 自动抠图，已切换到降级模式');
+    throw new Error('当前浏览器不支持本地智能分割，已切换到启发式兜底');
   }
 
   async segmentByPoints(): Promise<ImageData> {
-    throw new Error('当前浏览器不支持本地 SAM 自动抠图，已切换到降级模式');
+    throw new Error('当前浏览器不支持本地智能分割，已切换到启发式兜底');
   }
 }

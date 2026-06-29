@@ -42,7 +42,9 @@ export function createImageQueueItem(file: File, previewUrl: string, id = crypto
       height: 0,
       backgroundType: 'transparent',
       backgroundColor: '#ffffff',
-      cornerRadius: 0
+      cornerRadius: 0,
+      compressionMode: 'source-size',
+      jpegQuality: 88
     }
   };
 }

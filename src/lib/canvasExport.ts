@@ -1,9 +1,20 @@
 import type { CropRect, ExportFormat, ExportSettings } from '../types';
 
+export interface ExportImageOptions {
+  sourceFileSize?: number;
+  sourcePixelCount?: number;
+}
+
+interface CanvasEncodeOptions {
+  targetBytes?: number;
+}
+
 export function normalizeExportSettings(settings: ExportSettings): ExportSettings {
   const normalized = {
     ...settings,
-    sizeMode: settings.sizeMode ?? 'crop'
+    sizeMode: settings.sizeMode ?? 'crop',
+    compressionMode: settings.compressionMode ?? 'source-size',
+    jpegQuality: clampQualityPercent(settings.jpegQuality ?? 88)
   };
 
   if (normalized.backgroundType === 'transparent' && normalized.format === 'jpeg') {
@@ -24,7 +35,8 @@ export function mimeForFormat(format: ExportFormat): string {
 export async function exportCanvasImage(
   source: CanvasImageSource,
   crop: CropRect,
-  settings: ExportSettings
+  settings: ExportSettings,
+  options: ExportImageOptions = {}
 ): Promise<Blob> {
   const normalized = normalizeExportSettings(settings);
   const sourceSize = getCanvasSourceSize(source);
@@ -53,7 +65,9 @@ export async function exportCanvasImage(
   context.drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   context.restore();
 
-  return canvasToBlob(canvas, normalized.format);
+  return canvasToBlob(canvas, normalized.format, normalized, {
+    targetBytes: estimateTargetBytes(options.sourceFileSize, options.sourcePixelCount, outputSize)
+  });
 }
 
 export function resolveExportSize(
@@ -115,7 +129,26 @@ function applyRoundedClip(context: CanvasRenderingContext2D, width: number, heig
   context.clip();
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, format: ExportFormat): Promise<Blob> {
+export function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  format: ExportFormat,
+  settings: ExportSettings,
+  options: CanvasEncodeOptions = {}
+): Promise<Blob> {
+  const normalized = normalizeExportSettings(settings);
+  if (format !== 'jpeg') {
+    return encodeCanvas(canvas, format);
+  }
+
+  const maxQuality = normalized.jpegQuality / 100;
+  if (normalized.compressionMode === 'quality' || !options.targetBytes) {
+    return encodeCanvas(canvas, format, maxQuality);
+  }
+
+  return encodeJpegNearTarget(canvas, format, options.targetBytes, maxQuality);
+}
+
+function encodeCanvas(canvas: HTMLCanvasElement, format: ExportFormat, quality?: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -127,7 +160,55 @@ function canvasToBlob(canvas: HTMLCanvasElement, format: ExportFormat): Promise<
         resolve(blob);
       },
       mimeForFormat(format),
-      format === 'jpeg' ? 0.92 : undefined
+      quality
     );
   });
+}
+
+async function encodeJpegNearTarget(
+  canvas: HTMLCanvasElement,
+  format: ExportFormat,
+  targetBytes: number,
+  maxQuality: number
+): Promise<Blob> {
+  const minQuality = 0.42;
+  let low = minQuality;
+  let high = Math.max(minQuality, maxQuality);
+  let bestUnderTarget: Blob | undefined;
+  let smallestBlob: Blob | undefined;
+
+  for (let index = 0; index < 7; index += 1) {
+    const quality = (low + high) / 2;
+    const blob = await encodeCanvas(canvas, format, quality);
+
+    if (!smallestBlob || blob.size < smallestBlob.size) {
+      smallestBlob = blob;
+    }
+
+    if (blob.size <= targetBytes) {
+      bestUnderTarget = blob;
+      low = quality;
+    } else {
+      high = quality;
+    }
+  }
+
+  return bestUnderTarget ?? smallestBlob ?? encodeCanvas(canvas, format, minQuality);
+}
+
+function estimateTargetBytes(
+  sourceFileSize: number | undefined,
+  sourcePixelCount: number | undefined,
+  outputSize: { width: number; height: number }
+): number | undefined {
+  if (!sourceFileSize || !sourcePixelCount || sourcePixelCount <= 0) {
+    return undefined;
+  }
+
+  const outputPixels = Math.max(1, outputSize.width * outputSize.height);
+  return Math.max(2048, Math.round((sourceFileSize * outputPixels) / sourcePixelCount));
+}
+
+function clampQualityPercent(value: number): number {
+  return Math.max(40, Math.min(95, Math.round(value)));
 }

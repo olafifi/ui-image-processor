@@ -294,9 +294,27 @@ describe('App layout', () => {
     expect(exportImage).toHaveBeenCalledWith(
       mockSource,
       expect.objectContaining({ ratio: '1:1' }),
-      expect.objectContaining({ format: 'png' })
+      expect.objectContaining({ format: 'png' }),
+      expect.objectContaining({ sourceFileSize: 5 })
     );
     expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'card.png');
+  });
+
+  it('keeps the original file blob when no export transform is needed', async () => {
+    const user = userEvent.setup();
+    const exportImage = vi.fn(async () => new Blob(['reencoded'], { type: 'image/png' }));
+    const downloadBlob = vi.fn();
+
+    render(<App downloadBlob={downloadBlob} exportImage={exportImage} />);
+
+    const originalFile = new File(['small-png'], 'original.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText('导入图片文件'), [originalFile]);
+    fireImageLoad('original.png', 800, 800);
+    await screen.findByText(/裁剪：800 x 800/);
+    await user.click(screen.getByRole('button', { name: /导出当前 PNG/ }));
+
+    expect(exportImage).not.toHaveBeenCalled();
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(originalFile, 'original.png'));
   });
 
   it('shows crop-sized export dimensions instead of forcing 1024 square output', async () => {
@@ -351,7 +369,8 @@ describe('App layout', () => {
       2,
       expect.anything(),
       expect.objectContaining({ ratio: '4:3', x: 0.125, y: 0, width: 0.75, height: 1 }),
-      expect.anything()
+      expect.anything(),
+      expect.objectContaining({ sourceFileSize: 7 })
     );
   });
 

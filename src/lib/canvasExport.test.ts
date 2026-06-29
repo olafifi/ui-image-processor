@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extensionForFormat, normalizeExportSettings, resolveExportSize } from './canvasExport';
+import { canvasToBlob, extensionForFormat, normalizeExportSettings, resolveExportSize } from './canvasExport';
 import type { ExportSettings } from '../types';
 
 const baseSettings: ExportSettings = {
@@ -9,7 +9,9 @@ const baseSettings: ExportSettings = {
   height: 1024,
   backgroundType: 'transparent',
   backgroundColor: '#ffffff',
-  cornerRadius: 24
+  cornerRadius: 24,
+  compressionMode: 'source-size',
+  jpegQuality: 88
 };
 
 describe('canvas export helpers', () => {
@@ -57,4 +59,40 @@ describe('canvas export helpers', () => {
       height: 288
     });
   });
+
+  it('uses fixed jpeg quality when source-size matching is disabled', async () => {
+    const qualities: Array<number | undefined> = [];
+    const canvas = makeEncodingCanvas(qualities, (quality) => Math.round((quality ?? 1) * 1000));
+
+    await canvasToBlob(canvas, 'jpeg', { ...baseSettings, backgroundType: 'solid', compressionMode: 'quality', jpegQuality: 76 });
+
+    expect(qualities).toEqual([0.76]);
+  });
+
+  it('lowers jpeg quality to stay close to the source-size target', async () => {
+    const qualities: Array<number | undefined> = [];
+    const canvas = makeEncodingCanvas(qualities, (quality) => Math.round((quality ?? 1) * 1000));
+
+    const blob = await canvasToBlob(canvas, 'jpeg', {
+      ...baseSettings,
+      backgroundType: 'solid',
+      compressionMode: 'source-size',
+      jpegQuality: 92
+    }, { targetBytes: 500 });
+
+    expect(blob.size).toBeLessThanOrEqual(500);
+    expect(Math.max(...qualities.filter((quality): quality is number => quality !== undefined))).toBeLessThan(0.92);
+  });
 });
+
+function makeEncodingCanvas(
+  qualities: Array<number | undefined>,
+  sizeForQuality: (quality: number | undefined) => number
+): HTMLCanvasElement {
+  return {
+    toBlob(callback: BlobCallback, type?: string, quality?: number) {
+      qualities.push(quality);
+      callback(new Blob([new Uint8Array(sizeForQuality(quality))], { type }));
+    }
+  } as HTMLCanvasElement;
+}

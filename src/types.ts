@@ -6,6 +6,8 @@ export type BackgroundType = 'transparent' | 'solid';
 
 export type ExportSizeMode = 'crop' | 'custom';
 
+export type ExportCompressionMode = 'source-size' | 'quality';
+
 export type AppMode = 'full' | 'degraded';
 
 export type WorkspaceMode = 'edit' | 'rename';
@@ -46,6 +48,8 @@ export interface ExportSettings {
   backgroundType: BackgroundType;
   backgroundColor: string;
   cornerRadius: number;
+  compressionMode: ExportCompressionMode;
+  jpegQuality: number;
 }
 
 export interface ImageQueueItem {

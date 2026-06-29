@@ -67,7 +67,14 @@ export function ExportPanel({
 
       <div className="field">
         <strong>当前图片</strong>
-        {activeItem ? activeItem.originalName : '未导入图片'}
+        {activeItem ? (
+          <>
+            {activeItem.originalName}
+            <span className="field-note">原图体积 {formatBytes(activeItem.sourceFile.size)}</span>
+          </>
+        ) : (
+          '未导入图片'
+        )}
       </div>
       <div className="field">
         <strong>输出尺寸</strong>
@@ -151,6 +158,42 @@ export function ExportPanel({
             value={settings?.backgroundColor ?? '#ffffff'}
           />
         </label>
+        <label className="stacked-control">
+          <span>文件体积</span>
+          <select
+            aria-label="导出体积策略"
+            disabled={!settings}
+            onChange={(event) =>
+              onUpdateSettings({ compressionMode: event.currentTarget.value as ExportSettings['compressionMode'] })
+            }
+            value={settings?.compressionMode ?? 'source-size'}
+          >
+            <option value="source-size">接近原图体积</option>
+            <option value="quality">固定 JPG 质量</option>
+          </select>
+        </label>
+        {settings?.format === 'jpeg' && (
+          <label className="stacked-control">
+            <span>JPG 质量</span>
+            <div className="range-row">
+              <input
+                aria-label="JPG 导出质量"
+                disabled={!settings || settings.compressionMode === 'source-size'}
+                max={95}
+                min={40}
+                onChange={(event) => onUpdateSettings({ jpegQuality: toNonNegativeInt(event.currentTarget.value, 88) })}
+                type="range"
+                value={settings.jpegQuality ?? 88}
+              />
+              <span>{settings.jpegQuality ?? 88}%</span>
+            </div>
+          </label>
+        )}
+        <span className="field-note">
+          {settings?.format === 'png'
+            ? 'PNG 透明图为无损导出，体积可能大于 JPG/WebP 原图。'
+            : '接近原图体积会自动选择 JPG 压缩质量。'}
+        </span>
       </div>
       <div className="field">
         <strong>圆角</strong>
@@ -205,4 +248,16 @@ function toPositiveInt(value: string, fallback: number): number {
 function toNonNegativeInt(value: string, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }

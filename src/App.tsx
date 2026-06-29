@@ -6,7 +6,7 @@ import { RenameWorkspace } from './components/RenameWorkspace';
 import { TemplateDialog } from './components/TemplateDialog';
 import { TopBar } from './components/TopBar';
 import { autoCutoutItem, type AutoCutoutResult } from './lib/backgroundRemoval';
-import { exportCanvasImage, normalizeExportSettings } from './lib/canvasExport';
+import { exportCanvasImage, normalizeExportSettings, resolveExportSize } from './lib/canvasExport';
 import { applyCutoutEditToImages } from './lib/cutoutEdit';
 import { fitCropToRatio, fullCrop } from './lib/crop';
 import { downloadBlob as browserDownloadBlob } from './lib/download';
@@ -35,7 +35,9 @@ const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   height: 0,
   backgroundType: 'transparent',
   backgroundColor: '#ffffff',
-  cornerRadius: 0
+  cornerRadius: 0,
+  compressionMode: 'source-size',
+  jpegQuality: 88
 };
 
 type AutoCutoutRunner = (item: ImageQueueItem) => Promise<AutoCutoutResult>;
@@ -429,9 +431,17 @@ export function App({
 
   const exportSingleItem = useCallback(
     async (item: ImageQueueItem) => {
-      const image = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
       const settings = normalizeExportSettings(item.exportSettings);
-      const blob = await exportImage(image, item.crop, settings);
+      const reusableSource = getReusableSourceFile(item, settings);
+      if (reusableSource) {
+        return { blob: reusableSource, settings };
+      }
+
+      const image = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
+      const blob = await exportImage(image, item.crop, settings, {
+        sourceFileSize: item.sourceFile.size,
+        sourcePixelCount: item.naturalWidth * item.naturalHeight
+      });
       return { blob, settings };
     },
     [exportImage, loadImage]
@@ -472,9 +482,22 @@ export function App({
     try {
       const files: ZipFileSource[] = [];
       for (const item of items) {
+        const reusableSource = getReusableSourceFile(item, settings);
+        if (reusableSource) {
+          files.push({
+            blob: reusableSource,
+            originalName: item.originalName,
+            targetName: item.targetName
+          });
+          continue;
+        }
+
         const image = await loadImage(item.processedPreviewUrl ?? item.previewUrl);
         files.push({
-          blob: await exportImage(image, item.crop, settings),
+          blob: await exportImage(image, item.crop, settings, {
+            sourceFileSize: item.sourceFile.size,
+            sourcePixelCount: item.naturalWidth * item.naturalHeight
+          }),
           originalName: item.originalName,
           targetName: item.targetName
         });
@@ -636,6 +659,54 @@ function syncExportSettingsToCrop(
     width,
     height: Math.max(1, Math.round(width / aspect))
   };
+}
+
+function getReusableSourceFile(item: ImageQueueItem, settings: ExportSettings): File | undefined {
+  if (item.processedPreviewUrl || settings.cornerRadius > 0 || !isFullCrop(item.crop)) {
+    return undefined;
+  }
+
+  const sourceFormat = getSourceExportFormat(item);
+  if (!sourceFormat || sourceFormat !== settings.format) {
+    return undefined;
+  }
+
+  if (settings.format === 'png' && settings.backgroundType !== 'transparent') {
+    return undefined;
+  }
+
+  const outputSize = resolveExportSize(
+    { width: item.naturalWidth, height: item.naturalHeight },
+    item.crop,
+    settings
+  );
+
+  if (outputSize.width !== item.naturalWidth || outputSize.height !== item.naturalHeight) {
+    return undefined;
+  }
+
+  return item.sourceFile;
+}
+
+function getSourceExportFormat(item: ImageQueueItem) {
+  const extension = item.originalName.split('.').pop()?.toLowerCase();
+  if (item.mimeType === 'image/png' || extension === 'png') {
+    return 'png';
+  }
+  if (item.mimeType === 'image/jpeg' || extension === 'jpg' || extension === 'jpeg') {
+    return 'jpeg';
+  }
+  return undefined;
+}
+
+function isFullCrop(crop: CropRect): boolean {
+  const epsilon = 0.0001;
+  return (
+    Math.abs(crop.x) < epsilon &&
+    Math.abs(crop.y) < epsilon &&
+    Math.abs(crop.width - 1) < epsilon &&
+    Math.abs(crop.height - 1) < epsilon
+  );
 }
 
 function getErrorMessage(error: unknown): string {

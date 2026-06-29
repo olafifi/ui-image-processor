@@ -201,6 +201,8 @@ function makeItem(overrides: ImageQueueItemOverrides = {}): ImageQueueItem {
       backgroundType: 'transparent',
       backgroundColor: '#ffffff',
       cornerRadius: 0,
+      compressionMode: 'source-size',
+      jpegQuality: 88,
       ...overrides.exportSettings
     }
   };

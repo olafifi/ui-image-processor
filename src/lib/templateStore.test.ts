@@ -21,7 +21,9 @@ describe('template store', () => {
         height: 1024,
         backgroundType: 'transparent',
         backgroundColor: '#ffffff',
-        cornerRadius: 24
+        cornerRadius: 24,
+        compressionMode: 'source-size',
+        jpegQuality: 88
       },
       namingRule: 'ui_ref_{n}'
     });
